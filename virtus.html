@@ -250,7 +250,7 @@ const SBU='vt_url',SBK='vt_key';
 const DB={
   url:'',key:'',
   init(u,k){this.url=u.replace(/\/$/,'');this.key=k;},
-  hd(){return{'Content-Type':'application/json','apikey':this.key,'Authorization':'Bearer '+this.key,'Prefer':'return=representation'};},
+  hd(){const tk=localStorage.getItem('vt_token');const base={'Content-Type':'application/json','apikey':this.key,'Prefer':'return=representation'};base['Authorization']='Bearer '+(tk||this.key);return base;},
   async req(method,table,opts={}){
     let path='/rest/v1/'+table;
     const p=[];
@@ -283,12 +283,18 @@ const DB={
       return{ok:false,msg:'HTTP '+r.status+': '+txt.substring(0,200)};
     }catch(e){return{ok:false,msg:'Falha: '+e.message+' | URL: '+this.url};}
   }
-};
+,
+  async signIn(email,password){try{const r=await fetch(this.url+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json','apikey':this.key},body:JSON.stringify({email,password})});const d=await r.json();if(!r.ok)return{ok:false,msg:d.error_description||d.msg||'E-mail ou senha incorretos.'};return{ok:true,token:d.access_token,refresh:d.refresh_token,user:d.user};}catch(e){return{ok:false,msg:e.message};}},
+  async signOut(){try{const tk=localStorage.getItem('vt_token');if(tk)await fetch(this.url+'/auth/v1/logout',{method:'POST',headers:{'Content-Type':'application/json','apikey':this.key,'Authorization':'Bearer '+tk}});}catch(e){}['vt_token','vt_refresh','vt_user'].forEach(function(k){localStorage.removeItem(k);});},
+  async getUser(){const tk=localStorage.getItem('vt_token');if(!tk)return null;try{const r=await fetch(this.url+'/auth/v1/user',{headers:{'apikey':this.key,'Authorization':'Bearer '+tk}});return r.ok?await r.json():null;}catch(e){return null;}},
+  async refreshToken(){const rf=localStorage.getItem('vt_refresh');if(!rf)return false;try{const r=await fetch(this.url+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'Content-Type':'application/json','apikey':this.key},body:JSON.stringify({refresh_token:rf})});const d=await r.json();if(!r.ok)return false;localStorage.setItem('vt_token',d.access_token);localStorage.setItem('vt_refresh',d.refresh_token);return true;}catch(e){return false;}},
+  async resetPassword(email){try{const r=await fetch(this.url+'/auth/v1/recover',{method:'POST',headers:{'Content-Type':'application/json','apikey':this.key},body:JSON.stringify({email})});return r.ok;}catch(e){return false;}}};
 
 /* ── STATE ───────────────────────────────────────────────── */
 const S={page:'dashboard',devs:[],cirs:[],prods:[],protos:[],loading:false,sbOpen:false,
   alert:null,atimer:null,searchDev:'',tipoDev:'Todos',searchCir:'',stCir:'todos',searchProd:'',
-  filtHosp:'',filtOper:'',filtOrigem:''};
+  filtHosp:'',filtOper:'',filtOrigem:'',
+  user:null}; // user = {id, email, perfil, nome}
 
 const STATUS={aguardando:'Aguardando Autorizacao de Faturamento',autorizado:'Faturamento Autorizado',
   faturado:'Totalmente Faturado',pag_pendente:'Pendencia de Pagamento',pag_realizado:'Processo Concluido'};
@@ -383,24 +389,79 @@ alter table cirurgias add column if not exists atividades jsonb default '[]';`;
 
 /* ── SETUP ───────────────────────────────────────────────── */
 function renderSetup(err){
+  const hasConn=!!(localStorage.getItem(SBU)&&localStorage.getItem(SBK));
   document.getElementById('app').innerHTML=
-    '<div class="setup"><div class="setup-card">'
+    '<div class="setup"><div class="setup-card" style="max-width:420px">'
     +'<div class="setup-logo">Virtus</div>'
-    +'<p class="setup-sub">Sistema de Gestao de Cobracas Medicas</p>'
-    +(err?'<div class="alert al-d">'+esc(err)+'</div>':'')
-    +'<div style="margin-bottom:12px"><label>URL do Projeto Supabase</label>'
-    +'<input id="sb-url" type="text" placeholder="https://xxxx.supabase.co" value="'+esc(localStorage.getItem(SBU)||'')+'"/></div>'
-    +'<div style="margin-bottom:16px"><label>Chave Anon/Public</label>'
-    +'<input id="sb-key" type="text" placeholder="eyJhbGci..." value="'+esc(localStorage.getItem(SBK)||'')+'"/></div>'
-    +'<button class="btn btn-p" id="btn-conn" style="width:100%;justify-content:center;padding:11px;font-size:13px">Conectar e Entrar</button>'
-    +'<div class="setup-note"><strong>Configuracao:</strong><br>'
-    +'1. Crie conta em <a href="https://supabase.com" target="_blank">supabase.com</a><br>'
-    +'2. Projeto > Settings > API > copie URL e Anon Key<br>'
-    +'3. SQL Editor > cole o schema abaixo > Run<br><br>'
-    +'<strong>Schema SQL:</strong><br>'
-    +'<textarea style="width:100%;height:100px;font-size:10px;font-family:monospace;margin-top:4px;padding:6px;border-radius:6px;border:1px solid #ddd;resize:vertical;" readonly>'+SQL_SCHEMA+'</textarea>'
+    +'<p class="setup-sub">Gestao de Pendencias de Faturamento</p>'
+    +(err?'<div class="alert al-d" style="margin-bottom:14px">'+esc(err)+'</div>':'')
+    // Se já tem conexão configurada, mostrar login direto
+    +(hasConn
+      ? '<div id="login-block">'
+        +'<div style="margin-bottom:14px"><label>E-mail</label>'
+        +'<input id="login-email" type="email" placeholder="seu@email.com" autocomplete="email"/></div>'
+        +'<div style="margin-bottom:6px"><label>Senha</label>'
+        +'<input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password"/></div>'
+        +'<div style="text-align:right;margin-bottom:18px">'
+        +'<a href="#" id="link-forgot" style="font-size:11px;color:var(--tl)">Esqueci minha senha</a></div>'
+        +'<button class="btn btn-p" id="btn-login" style="width:100%;justify-content:center;padding:11px;font-size:14px;font-weight:600">Entrar</button>'
+        +'<div style="margin-top:14px;text-align:center">'
+        +'<a href="#" id="link-reconfig" style="font-size:11px;color:var(--tx3)">Reconfigurar banco de dados</a>'
+        +'</div></div>'
+      // Se não tem conexão, mostrar config do banco
+      : '<div id="config-block">'
+        +'<div style="margin-bottom:12px"><label>URL do Projeto Supabase</label>'
+        +'<input id="sb-url" type="text" placeholder="https://xxxx.supabase.co" value="'+esc(localStorage.getItem(SBU)||'')+'"/></div>'
+        +'<div style="margin-bottom:16px"><label>Chave Anon/Public</label>'
+        +'<input id="sb-key" type="text" placeholder="eyJhbGci..." value="'+esc(localStorage.getItem(SBK)||'')+'"/></div>'
+        +'<button class="btn btn-p" id="btn-conn" style="width:100%;justify-content:center;padding:11px">Configurar</button>'
+        +'</div>'
+    )
+    +'</div></div>';
+
+  if(hasConn){
+    const btnLogin=document.getElementById('btn-login');
+    const emailEl=document.getElementById('login-email');
+    const passEl=document.getElementById('login-pass');
+    if(btnLogin)btnLogin.onclick=doLogin;
+    if(passEl)passEl.onkeydown=function(e){if(e.key==='Enter')doLogin();};
+    if(emailEl)emailEl.onkeydown=function(e){if(e.key==='Enter')passEl&&passEl.focus();};
+    const lkForg=document.getElementById('link-forgot');
+    if(lkForg)lkForg.onclick=function(e){e.preventDefault();renderForgotPassword();};
+    const lkReconf=document.getElementById('link-reconfig');
+    if(lkReconf)lkReconf.onclick=function(e){
+      e.preventDefault();
+      localStorage.removeItem(SBU);localStorage.removeItem(SBK);
+      renderSetup();
+    };
+    if(emailEl)emailEl.focus();
+  } else {
+    const btnConn=document.getElementById('btn-conn');
+    if(btnConn)btnConn.onclick=doConnect;
+  }
+}
+
+function renderForgotPassword(msg){
+  document.getElementById('app').innerHTML=
+    '<div class="setup"><div class="setup-card" style="max-width:420px">'
+    +'<div class="setup-logo">Virtus</div>'
+    +'<p class="setup-sub">Recuperar senha</p>'
+    +(msg?'<div class="alert al-s" style="margin-bottom:14px">'+esc(msg)+'</div>':'')
+    +'<p style="font-size:13px;color:var(--tx2);margin-bottom:16px">Informe seu e-mail e enviaremos um link para redefinir sua senha.</p>'
+    +'<div style="margin-bottom:16px"><label>E-mail</label>'
+    +'<input id="forgot-email" type="email" placeholder="seu@email.com"/></div>'
+    +'<button class="btn btn-p" id="btn-forgot" style="width:100%;justify-content:center;padding:11px">Enviar link de recuperacao</button>'
+    +'<div style="margin-top:14px;text-align:center">'
+    +'<a href="#" id="link-back-login" style="font-size:11px;color:var(--tx3)">&#8592; Voltar ao login</a>'
     +'</div></div></div>';
-  document.getElementById('btn-conn').onclick=doConnect;
+  document.getElementById('btn-forgot').onclick=async function(){
+    const em=document.getElementById('forgot-email').value.trim();
+    if(!em){alert('Informe o e-mail.');return;}
+    const ok=await DB.resetPassword(em);
+    if(ok)renderForgotPassword('E-mail de recuperacao enviado! Verifique sua caixa de entrada.');
+    else renderForgotPassword('Erro ao enviar. Verifique o e-mail informado.');
+  };
+  document.getElementById('link-back-login').onclick=function(e){e.preventDefault();renderSetup();};
 }
 
 async function doConnect(){
@@ -417,7 +478,59 @@ async function doConnect(){
     return;
   }
   localStorage.setItem(SBU,url);localStorage.setItem(SBK,key);
-  await loadData();renderApp();
+  renderSetup(); // Mostrar tela de login após configurar
+}
+
+async function doLogin(){
+  const emailEl=document.getElementById('login-email');
+  const passEl=document.getElementById('login-pass');
+  const btnEl=document.getElementById('btn-login');
+  const email=(emailEl?emailEl.value:'').trim();
+  const pass=passEl?passEl.value:'';
+  if(!email||!pass){renderSetup('Preencha e-mail e senha.');return;}
+  if(btnEl){btnEl.innerHTML='<span class="spin"></span> Entrando...';btnEl.disabled=true;}
+  const r=await DB.signIn(email,pass);
+  if(!r.ok){
+    renderSetup(r.msg||'E-mail ou senha incorretos.');
+    return;
+  }
+  // Salvar token
+  localStorage.setItem('vt_token',r.token);
+  localStorage.setItem('vt_refresh',r.refresh);
+  // Buscar perfil do usuário na tabela usuarios
+  const perfil=await carregarPerfil(r.user.id,email);
+  S.user={
+    id:r.user.id,
+    email:email,
+    nome:perfil?perfil.nome:email.split('@')[0],
+    perfil:perfil?perfil.perfil:'admin'
+  };
+  localStorage.setItem('vt_user',JSON.stringify(S.user));
+  await loadData();
+  renderApp();
+}
+
+async function carregarPerfil(uid,email){
+  try{
+    const r=await DB.sel('usuarios',{select:'*',eq:{supabase_uid:uid},limit:1});
+    if(r.data&&r.data.length>0)return r.data[0];
+    // Primeira vez: criar perfil admin automaticamente
+    const ins=await DB.ins('usuarios',{
+      supabase_uid:uid,email:email,
+      nome:email.split('@')[0],perfil:'admin'
+    });
+    return ins.data?ins.data[0]:null;
+  }catch(e){return null;}
+}
+
+async function doLogout(){
+  if(!confirm('Deseja sair do sistema?'))return;
+  await DB.signOut();
+  S.user=null;
+  localStorage.removeItem('vt_token');
+  localStorage.removeItem('vt_refresh');
+  localStorage.removeItem('vt_user');
+  renderSetup();
 }
 
 /* ── LOAD DATA ───────────────────────────────────────────── */
@@ -488,7 +601,7 @@ function renderApp(){
     +'<nav class="sb-nav"><div class="sb-grp">Principal</div>'+navH
     +'<div class="sb-grp" style="margin-top:8px">Sistema</div>'
     +'<div class="sb-item" onclick="localStorage.clear();location.reload()"><span class="sb-ico">[X]</span>Reconfigurar BD</div>'
-    +'</nav><div class="sb-foot"><p>Virtus v3.0 Online<br>GitHub Pages + Supabase</p></div></div>'
+    +'</nav>'+'<div class="sb-foot" style="padding:10px 12px">'+'<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:8px">'+'<div style="font-size:10px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Logado como</div>'+'<div style="font-size:12px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(S.user?esc(S.user.nome):'--')+'</div>'+'<div style="font-size:10px;color:rgba(255,255,255,.6)">'+(S.user?esc(S.user.email):'')+'</div>'+'<div style="margin-top:4px"><span style="background:rgba(255,255,255,.15);padding:1px 8px;border-radius:10px;font-size:10px;color:#fff">'+(S.user?S.user.perfil.toUpperCase():'')+'</span></div>'+'</div>'+'<button id="btn-logout" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.8);border-radius:6px;padding:7px;font-size:11px;cursor:pointer;font-family:Poppins,sans-serif">&#x2192; Sair do Sistema</button>'+'<p style="font-size:9px;color:rgba(255,255,255,.3);margin-top:8px;text-align:center">Virtus v4.0 | GitHub Pages</p>'+'</div></div>'
     +'<div class="main">'
     +'<div class="topbar">'
     +'<div style="display:flex;align-items:center;gap:12px">'
@@ -751,7 +864,7 @@ function renderCirs(){
       +'<td><div class="td-act">'
       +'<button class="btn btn-xs btn-p cir-dos-btn" data-id="'+cc.id+'">Dossie</button>'
       +'<button class="btn btn-xs btn-s cir-edit-btn" data-id="'+cc.id+'">Acessar</button>'
-      +'<button class="btn btn-xs" style="background:var(--sf2);color:var(--tx2);border:1px solid var(--bd)" title="Arquivar cirurgia" data-id="'+cc.id+'" class="cir-arq-btn">&#128196;</button>'
+      +'<button class="btn btn-xs cir-arq-btn" style="background:var(--sf2);color:var(--tx2);border:1px solid var(--bd)" title="Arquivar cirurgia" data-id="'+cc.id+'">&#128196;</button>'
       +'</div></td></tr>';
   }).join('');
 
@@ -2516,14 +2629,98 @@ function dlHtml(){
 
 (async function(){
   var url=localStorage.getItem(SBU),key=localStorage.getItem(SBK);
-  if(url&&key){
-    DB.init(url,key);
-    var t=await DB.test();
-    if(t.ok){await loadData();renderApp();return;}
-    renderSetup('Reconexao falhou: '+t.msg);return;
+  if(!url||!key){renderSetup();return;}
+  DB.init(url,key);
+  // Verificar se há token salvo e se ainda é válido
+  var savedUser=localStorage.getItem('vt_user');
+  var token=localStorage.getItem('vt_token');
+  if(token&&savedUser){
+    // Verificar se o token ainda é válido
+    var authUser=await DB.getUser();
+    if(authUser&&authUser.id){
+      S.user=JSON.parse(savedUser);
+      // Atualizar perfil do banco
+      var perfil=await carregarPerfil(authUser.id,authUser.email);
+      if(perfil){
+        S.user.nome=perfil.nome;
+        S.user.perfil=perfil.perfil;
+        localStorage.setItem('vt_user',JSON.stringify(S.user));
+      }
+      await loadData();renderApp();return;
+    }
+    // Token inválido — tentar refresh
+    var refreshed=await DB.refreshToken();
+    if(refreshed){
+      authUser=await DB.getUser();
+      if(authUser){
+        S.user=JSON.parse(savedUser);
+        await loadData();renderApp();return;
+      }
+    }
+    // Refresh falhou — limpar e pedir login
+    localStorage.removeItem('vt_token');
+    localStorage.removeItem('vt_refresh');
+    localStorage.removeItem('vt_user');
   }
-  renderSetup();
+  // Verificar conexão com banco
+  var t=await DB.test();
+  if(!t.ok){renderSetup('Reconexao falhou: '+t.msg);return;}
+  renderSetup(); // Mostrar tela de login
 })();
 </script>
 </body>
-</html>
+</html,
+  async signIn(email,password){
+    try{
+      const r=await fetch(this.url+'/auth/v1/token?grant_type=password',{
+        method:'POST',headers:{'Content-Type':'application/json','apikey':this.key},
+        body:JSON.stringify({email,password})
+      });
+      const d=await r.json();
+      if(!r.ok)return{ok:false,msg:d.error_description||d.msg||'E-mail ou senha incorretos.'};
+      return{ok:true,token:d.access_token,refresh:d.refresh_token,user:d.user};
+    }catch(e){return{ok:false,msg:e.message};}
+  },
+  async signOut(){
+    try{
+      const tk=localStorage.getItem('vt_token');
+      if(tk)await fetch(this.url+'/auth/v1/logout',{
+        method:'POST',headers:{'Content-Type':'application/json','apikey':this.key,'Authorization':'Bearer '+tk}
+      });
+    }catch(e){}
+    ['vt_token','vt_refresh','vt_user'].forEach(function(k){localStorage.removeItem(k);});
+  },
+  async getUser(){
+    const tk=localStorage.getItem('vt_token');
+    if(!tk)return null;
+    try{
+      const r=await fetch(this.url+'/auth/v1/user',{
+        headers:{'apikey':this.key,'Authorization':'Bearer '+tk}
+      });
+      return r.ok?await r.json():null;
+    }catch(e){return null;}
+  },
+  async refreshToken(){
+    const rf=localStorage.getItem('vt_refresh');
+    if(!rf)return false;
+    try{
+      const r=await fetch(this.url+'/auth/v1/token?grant_type=refresh_token',{
+        method:'POST',headers:{'Content-Type':'application/json','apikey':this.key},
+        body:JSON.stringify({refresh_token:rf})
+      });
+      const d=await r.json();
+      if(!r.ok)return false;
+      localStorage.setItem('vt_token',d.access_token);
+      localStorage.setItem('vt_refresh',d.refresh_token);
+      return true;
+    }catch(e){return false;}
+  },
+  async resetPassword(email){
+    try{
+      const r=await fetch(this.url+'/auth/v1/recover',{
+        method:'POST',headers:{'Content-Type':'application/json','apikey':this.key},
+        body:JSON.stringify({email})
+      });
+      return r.ok;
+    }catch(e){return false;}
+  }>
