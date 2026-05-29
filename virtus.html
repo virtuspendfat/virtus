@@ -238,13 +238,13 @@ tbody tr:hover td{background:#F0FFFE;}
 <script>
 "use strict";
 const SBU='vt_url',SBK='vt_key';
-   ```javascript
-   // Credenciais pré-configuradas (opcional)
-   if(!localStorage.getItem(SBU)){
-     localStorage.setItem(SBU,'https://etjkyqfruakhuhmrfbah.supabase.co');
-     localStorage.setItem(SBK,'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0amt5cWZydWFraHVobXJmYmFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDYxNDYsImV4cCI6MjA5NTQ4MjE0Nn0.iN8BCXECUcV-xQRjgWm9xHPMMzThjV6hMWl0ZvvIXGs');
-   }
-   ```
+// Credenciais pré-configuradas
+(function(){
+  if(!localStorage.getItem(SBU)){
+    localStorage.setItem(SBU,'https://etjkyqfruakhuhmrfbah.supabase.co');
+    localStorage.setItem(SBK,'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0amt5cWZydWFraHVobXJmYmFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDYxNDYsImV4cCI6MjA5NTQ4MjE0Nn0.iN8BCXECUcV-xQRjgWm9xHPMMzThjV6hMWl0ZvvIXGs');
+  }
+})();
 
 /* ── DB REST ─────────────────────────────────────────────── */
 const DB={
