@@ -510,6 +510,14 @@ async function doLogin(){
   renderApp();
 }
 
+// Listener global para ações da sidebar — persiste entre re-renders
+document.addEventListener('click', function(e){
+  var btn = e.target.closest('[data-action]');
+  if(!btn) return;
+  var action = btn.getAttribute('data-action');
+  if(action === 'logout') doLogout();
+});
+
 async function carregarPerfil(uid,email){
   try{
     const r=await DB.sel('usuarios',{select:'*',eq:{supabase_uid:uid},limit:1});
@@ -601,7 +609,7 @@ function renderApp(){
     +'<nav class="sb-nav"><div class="sb-grp">Principal</div>'+navH
     +'<div class="sb-grp" style="margin-top:8px">Sistema</div>'
     +'<div class="sb-item" onclick="localStorage.clear();location.reload()"><span class="sb-ico">[X]</span>Reconfigurar BD</div>'
-    +'</nav>'+'<div class="sb-foot" style="padding:10px 12px">'+'<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:8px">'+'<div style="font-size:10px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Logado como</div>'+'<div style="font-size:12px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(S.user?esc(S.user.nome):'--')+'</div>'+'<div style="font-size:10px;color:rgba(255,255,255,.6)">'+(S.user?esc(S.user.email):'')+'</div>'+'<div style="margin-top:4px"><span style="background:rgba(255,255,255,.15);padding:1px 8px;border-radius:10px;font-size:10px;color:#fff">'+(S.user?S.user.perfil.toUpperCase():'')+'</span></div>'+'</div>'+'<button id="btn-logout" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.8);border-radius:6px;padding:7px;font-size:11px;cursor:pointer;font-family:Poppins,sans-serif">&#x2192; Sair do Sistema</button>'+'<p style="font-size:9px;color:rgba(255,255,255,.3);margin-top:8px;text-align:center">Virtus v4.0 | GitHub Pages</p>'+'</div></div>'
+    +'</nav>'+'<div class="sb-foot" style="padding:10px 12px">'+'<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:8px">'+'<div style="font-size:10px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Logado como</div>'+'<div style="font-size:12px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(S.user?esc(S.user.nome):'--')+'</div>'+'<div style="font-size:10px;color:rgba(255,255,255,.6)">'+(S.user?esc(S.user.email):'')+'</div>'+'<div style="margin-top:4px"><span style="background:rgba(255,255,255,.15);padding:1px 8px;border-radius:10px;font-size:10px;color:#fff">'+(S.user?S.user.perfil.toUpperCase():'')+'</span></div>'+'</div>'+'<button data-action="logout" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.8);border-radius:6px;padding:7px;font-size:11px;cursor:pointer;font-family:Poppins,sans-serif">&#x2192; Sair do Sistema</button>'+'<p style="font-size:9px;color:rgba(255,255,255,.3);margin-top:8px;text-align:center">Virtus v4.0 | GitHub Pages</p>'+'</div></div>'
     +'<div class="main">'
     +'<div class="topbar">'
     +'<div style="display:flex;align-items:center;gap:12px">'
@@ -609,7 +617,7 @@ function renderApp(){
     +'<div><div class="tb-title">'+(titles[S.page]||S.page)+'</div><div class="tb-sub">Virtus / '+(titles[S.page]||S.page)+'</div></div></div>'
     +'<div class="tb-right">'+(S.loading?'<span class="spin"></span>':'')
     +'<button class="btn btn-ghost" onclick="loadData().then(renderPage)" title="Atualizar">&#8635;</button>'
-    +'<button class="btn btn-ghost" onclick="dlHtml()" title="Baixar sistema (.html)" style="font-size:16px">&#8659;</button>'
+    
     +'</div></div>'
     +'<div class="content"><div id="top-alert"></div><div id="pg"></div></div>'
     +'</div></div>';
