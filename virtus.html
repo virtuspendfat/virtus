@@ -289,8 +289,8 @@ const DB={
 const S={page:'dashboard',devs:[],cirs:[],prods:[],protos:[],loading:false,sbOpen:false,
   alert:null,atimer:null,searchDev:'',tipoDev:'Todos',searchCir:'',stCir:'todos',searchProd:''};
 
-const STATUS={aguardando:'Aguardando Liberacao',autorizado:'Fat. Autorizado',
-  faturado:'Fat. Realizado',pag_pendente:'Pgto. Pendente',pag_realizado:'Pgto. Realizado'};
+const STATUS={aguardando:'Aguardando Autorizacao de Faturamento',autorizado:'Faturamento Autorizado',
+  faturado:'Totalmente Faturado',pag_pendente:'Pendencia de Pagamento',pag_realizado:'Processo Concluido'};
 const SBADGE={aguardando:'bag',autorizado:'bau',faturado:'bfa',pag_pendente:'bpp',pag_realizado:'bpr'};
 const PORTAIS=['Opmenexo','Inpart','EMS Ventura','GT Plan','Apoio','E-mail','Outros'];
 const ESPEC=['Ortopedia','Cardiologia','Neurologia','Cirurgia Geral','Oncologia','Urologia','Ginecologia','Outros'];
@@ -785,21 +785,43 @@ function openMCir(c){
   CT='geral';renderMCir();
 }
 
-function copiarDeOrcado(destKey){
-  var src=CF.mat_orcado||[];
-  if(!src.length||(src.length===1&&!src[0].ref&&!src[0].desc))return;
+// Mapa: destino → fonte da etapa anterior
+var _FASE_ANTERIOR={
+  mat_autorizado:'mat_orcado',
+  mat_utilizado:'mat_autorizado',
+  mat_fat_autorizado:'mat_utilizado',
+  mat_faturado:'mat_fat_autorizado'
+};
+var _FASE_LABEL={
+  mat_orcado:'F1 Orcado',
+  mat_autorizado:'F2 Autorizado',
+  mat_utilizado:'F3 Utilizado',
+  mat_fat_autorizado:'F4 Fat.Autorizado'
+};
+
+function importarEtapaAnterior(destKey){
+  var srcKey=_FASE_ANTERIOR[destKey];
+  if(!srcKey)return;
+  var src=CF[srcKey]||[];
+  var srcLabel=_FASE_LABEL[srcKey]||srcKey;
+  if(!src.length||(src.length===1&&!src[0].ref&&!src[0].desc)){
+    showAlert('Etapa anterior ('+srcLabel+') não tem itens para importar.','warn');
+    return;
+  }
   var dest=CF[destKey]||[];
   var vazio=!dest.length||(dest.length===1&&!dest[0].ref&&!dest[0].desc);
-  if(vazio){
-    CF[destKey]=src.map(function(m){return Object.assign({},m,{_id:uid()});});
-    renderMCir();
-    showAlert('Itens copiados do Orcado!','info');
-  }
+  if(!vazio&&!confirm('Esta etapa já tem itens. Substituir pelos itens da etapa anterior ('+srcLabel+')?'))return;
+  CF[destKey]=src.map(function(m){return Object.assign({},m,{_id:uid()});});
+  renderMCir();
+  showAlert('Itens importados de '+srcLabel+'!','success');
 }
+
+// Manter compatibilidade com chamadas antigas
+function copiarDeOrcado(destKey){importarEtapaAnterior(destKey);}
 function openMCirById(id){openMCir(S.cirs.find(c=>c.id===id));}
 
 function mudarTab(t){
-  // Não copiar automaticamente — usuário deve clicar em "Copiar do Orçado"
+  // Usuário usa "Importar Itens da Etapa Anterior" manualmente — sem auto-cópia
   CT=t;renderMCir();
 }
 
@@ -862,7 +884,7 @@ function renderMCir(){
     +'<div class="tabs">'+tabsH+'</div>'+body+'</div>'
     +'<div class="modal-ft">'
     +'<button class="btn btn-s" onclick="closeMCir()">Cancelar</button>'
-    +'<button class="btn btn-p" id="bsc">Salvar Cirurgia</button>'
+    +'<button class="btn btn-p" id="bsc">Gravar Cirurgia</button>'
     +'</div></div></div>';
   document.getElementById('bsc').onclick=saveCir;
   setTimeout(applyDateMasks,60);
@@ -874,36 +896,8 @@ function buildMatTable(k,withConf){
   var resp=CF[rk]||{sol:'',tel:'',email:'',data:''};
   var solLabel=withConf?'Responsavel pela Confirmacao':'Solicitante';
   var isNotOrcado=(k!=='mat_orcado');
-  var srcOk=CF.mat_orcado&&CF.mat_orcado.length>0&&(CF.mat_orcado[0].ref||CF.mat_orcado[0].desc);
-  var copyBtn=(isNotOrcado&&srcOk)
-    ?'<button class="btn btn-s btn-sm" style="margin-left:10px;padding:3px 10px" onclick="copiarDeOrcado(\''+k+'\')">Copiar do Orcado</button>':'';
-
-  // resp é agora um array de histórico
-  var respArr=Array.isArray(CF[rk])?CF[rk]:[];
-
-  // Histórico de solicitantes (readonly)
-  var historicoHTML=respArr.map(function(r,ri){
-    return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 10px;background:var(--sf);border-radius:var(--r);border:1px solid var(--bd);margin-bottom:6px;font-size:12px">'
-      +'<span style="font-weight:600;color:var(--tx)">'+esc(r.sol||'--')+'</span>'
-      +(r.tel?'<span style="color:var(--tx3)">|</span><span>'+esc(r.tel)+'</span>':'')
-      +(r.email?'<span style="color:var(--tx3)">|</span><span>'+esc(r.email)+'</span>':'')
-      +(r.data?'<span style="color:var(--tx3)">|</span><span>'+fmtD(r.data)+'</span>':'')
-      +'<span style="color:var(--tx3);font-size:10px;margin-left:auto">Registrado: '+new Date(r.ts||'').toLocaleString('pt-BR')+'</span>'
-      +'</div>';
-  }).join('');
-
-  // Formulário para novo registro de solicitante
-  var novoFormHTML=''
-    +'<div id="rsp-form-'+rk+'" style="margin-top:8px">'
-    +'<div class="form-row fr4" style="margin-bottom:6px">'
-    +'<div><label>Nome *</label><input type="text" id="rsp-sol-'+rk+'" placeholder="Nome do contato" autocomplete="off"/></div>'
-    +'<div><label>Telefone</label><input type="tel" id="rsp-tel-'+rk+'" placeholder="(11) 9xxxx-xxxx"/></div>'
-    +'<div><label>E-mail</label><input type="email" id="rsp-email-'+rk+'" placeholder="email@empresa.com"/></div>'
-    +'<div><label>Data (DD/MM/AAAA)</label><input type="text" class="dt-mask" id="rsp-data-'+rk+'" placeholder="DD/MM/AAAA" maxlength="10"/></div>'
-    +'</div>'
-    +'<button class="btn btn-p btn-sm" onclick="addSolicitante(\''+rk+'\')">+ Registrar Solicitante</button>'
-    +'</div>';
-
+  var copyBtn=isNotOrcado
+    ?'<button class="btn btn-s btn-sm" style="margin-left:8px;padding:3px 10px;font-size:10px" onclick="importarEtapaAnterior(\''+k+'\')">&#11015; Importar Itens da Etapa Anterior</button>':'';
   var respBlock=''
     +'<div style="background:var(--ac2);border-radius:var(--r);padding:12px 14px;margin-bottom:16px;border-left:3px solid var(--tl)">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">'
@@ -914,7 +908,7 @@ function buildMatTable(k,withConf){
     +'</div>';
 
   var rows=items.length===0&&k!=='mat_orcado'
-    ?'<div style="text-align:center;padding:20px;color:var(--tx3);border:2px dashed var(--bd);border-radius:var(--r);margin-bottom:12px"><p style="font-size:13px;font-weight:500">Nenhum item nesta etapa.</p><p style="font-size:12px;margin-top:4px">Use <strong>Copiar do Orçado</strong> ou adicione itens manualmente.</p></div>'
+    ?'<div style="text-align:center;padding:20px;color:var(--tx3);border:2px dashed var(--bd);border-radius:var(--r);margin-bottom:12px"><p style="font-size:13px;font-weight:500">Nenhum item nesta etapa.</p><p style="font-size:12px;margin-top:4px">Use <strong>Importar Itens da Etapa Anterior</strong> ou adicione itens manualmente.</p></div>'
     :'';
   rows+=items.map(function(m,i){
     return '<div style="display:grid;grid-template-columns:1.3fr 3fr 80px 130px 130px 28px;gap:8px;align-items:end;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--bd)">'
@@ -1227,7 +1221,7 @@ function rmAtvAnx(ai,ji){if(CF.atividades[ai])CF.atividades[ai].anexos.splice(ji
 function closeMCir(){var w=document.getElementById('mcir-wrap');if(w)w.innerHTML='';}
 async function saveCir(){
   if(!CF.paciente){var e=document.getElementById('cerr');if(e)e.innerHTML='<div class="alert al-d">Nome do paciente obrigatorio.</div>';return;}
-  var btn=document.getElementById('bsc');btn.innerHTML='<span class="spin"></span> Salvando...';btn.disabled=true;
+  var btn=document.getElementById('bsc');btn.innerHTML='<span class="spin"></span> Gravando...';btn.disabled=true;
   try{
     // Não sobrescrever resp_* — é histórico, já foi gerenciado por addSolicitante()
     // Apenas garantir que existem como arrays
@@ -1276,11 +1270,30 @@ async function saveCir(){
     if(payload.id){res=await DB.upd('cirurgias',payload,{id:payload.id});}
     else{var{id,...ins}=payload;res=await DB.ins('cirurgias',ins);}
     if(res.error)throw new Error(res.error.message||JSON.stringify(res.error));
-    closeMCir();await loadData();renderPage();showAlert('Cirurgia salva com sucesso!');
+    // Recarregar dados em background sem fechar o modal
+    await loadData();
+    // Atualizar CF com o id gerado (para cirurgia nova)
+    if(!CF.id&&res.data){
+      var saved=Array.isArray(res.data)?res.data[0]:res.data;
+      if(saved&&saved.id)CF.id=saved.id;
+    }
+    // Atualizar tabela em background se estiver na página de cirurgias
+    if(S.page==='cirurgias'){
+      renderCirs();
+      // Reabrir o modal mantendo a aba atual
+      var mcirWrap=document.getElementById('mcir-wrap');
+      if(mcirWrap&&mcirWrap.innerHTML){
+        // Modal ainda aberto — apenas atualizar o título
+        var titleEl=document.querySelector('#mcir-wrap .modal-title');
+        if(titleEl)titleEl.textContent='Editar Cirurgia -- '+(CF.paciente||'');
+      }
+    }
+    btn.innerHTML='Gravar Cirurgia';btn.disabled=false;
+    showAlert('Cirurgia gravada com sucesso! ✓','success');
   }catch(e){
     var el=document.getElementById('cerr');
     if(el)el.innerHTML='<div class="alert al-d">Erro: '+esc(e.message)+'</div>';
-    btn.innerHTML='Salvar Cirurgia';btn.disabled=false;
+    btn.innerHTML='Gravar Cirurgia';btn.disabled=false;
   }
 }
 async function delCir(id){
