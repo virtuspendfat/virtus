@@ -828,7 +828,7 @@ function mudarTab(t){
 function renderMCir(){
   const tabs=['geral','orcado','autorizado','utilizado','fat_autorizado','faturado','saldo','evidencias','atividades'];
   const tabLabels={geral:'Geral',orcado:'F1 Orcado',autorizado:'F2 Autorizado',utilizado:'F3 Utilizado',fat_autorizado:'F4 Fat.Autorizado',faturado:'F5 Faturado',saldo:'F6 Saldo',evidencias:'Evidencias',atividades:'Atividades ('+(CF.atividades||[]).length+')'};
-  const tabsH=tabs.map(t=>'<div class="tab'+(CT===t?' active':'')+'" onclick="mudarTab(\''+t+'\');">'+tabLabels[t]+'</div>').join('');
+  const tabsH=tabs.map(t=>'<div class="tab'+(CT===t?' active':'')+' cir-tab" data-tab="'+t+'">'+tabLabels[t]+'</div>').join('');
 
   const hOpts=S.devs.filter(d=>d.tipo==='Hospital').map(h=>'<option value="'+h.id+'"'+(CF.hospital_id===h.id?' selected':'')+'>'+esc(h.razao_social)+'</option>').join('');
   const oOpts=S.devs.filter(d=>d.tipo==='Operadora').map(o=>'<option value="'+o.id+'"'+(CF.operadora_id===o.id?' selected':'')+'>'+esc(o.razao_social)+'</option>').join('');
@@ -887,7 +887,22 @@ function renderMCir(){
     +'<button class="btn btn-p" id="bsc">Gravar Cirurgia</button>'
     +'</div></div></div>';
   document.getElementById('bsc').onclick=saveCir;
-  setTimeout(applyDateMasks,60);
+  setTimeout(function(){
+    applyDateMasks();
+    // Event delegation para as abas do modal
+    var wrap=document.getElementById('mcir-wrap');
+    if(!wrap)return;
+    // Remover listener anterior se existir
+    if(wrap._tabListener){wrap.removeEventListener('click',wrap._tabListener);}
+    wrap._tabListener=function(e){
+      var tab=e.target.closest('.cir-tab');
+      if(tab){
+        var t=tab.getAttribute('data-tab');
+        if(t)mudarTab(t);
+      }
+    };
+    wrap.addEventListener('click',wrap._tabListener);
+  },60);
 }
 
 function buildMatTable(k,withConf){
