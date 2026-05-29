@@ -1,20 +1,18 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="description" content="Virtus — Gestão de Pendências de Faturamento Médico"/>
-<meta name="theme-color" content="#00695C"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-title" content="Virtus"/>
-<link rel="manifest" href="manifest.json"/>
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta http-equiv="Pragma" content="no-cache"/>
-<meta http-equiv="Expires" content="0"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<html lang="pt-BR"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Virtus — Gestão de Pendências de Faturamento Médico">
+<meta name="theme-color" content="#00695C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Virtus">
+<link rel="manifest" href="manifest.json">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>Virtus — Gestão de Pendências de Faturamento</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#F2F4F7;--sf:#FFFFFF;--sf2:#F4F6F9;--bd:#DDE2EA;--bd2:#B8C0CC;
@@ -234,7 +232,7 @@ tbody tr:hover td{background:#F0FFFE;}
 </style>
 </head>
 <body>
-<div id="app"></div>
+<div id="app"><div class="app"><div class="sb-ov" onclick="S.sbOpen=false;renderApp()"></div><div class="sidebar"><div class="sb-logo"><div class="sb-brand"><h1 style="font-size:20px;font-weight:800;letter-spacing:-0.5px">Virtus</h1><p style="font-size:10px;opacity:.55;margin-top:2px;line-height:1.3">Gestão de Pendências<br>de Faturamento</p></div></div><nav class="sb-nav"><div class="sb-grp">Principal</div><div class="sb-item active" onclick="S.page='dashboard';S.sbOpen=false;renderApp()"><span class="sb-ico">1</span>Dashboard</div><div class="sb-item" onclick="S.page='cirurgias';S.sbOpen=false;renderApp()"><span class="sb-ico">2</span>Cirurgias</div><div class="sb-item" onclick="S.page='clientes';S.sbOpen=false;renderApp()"><span class="sb-ico">3</span>Clientes</div><div class="sb-item" onclick="S.page='agenda';S.sbOpen=false;renderApp()"><span class="sb-ico">4</span>Agenda</div><div class="sb-item" onclick="S.page='relatorios';S.sbOpen=false;renderApp()"><span class="sb-ico">5</span>Relatorios</div><div class="sb-item" onclick="S.page='importar';S.sbOpen=false;renderApp()"><span class="sb-ico">6</span>Importar Dados</div><div class="sb-item" onclick="S.page='produtos';S.sbOpen=false;renderApp()"><span class="sb-ico">7</span>Produtos</div><div class="sb-item" onclick="S.page='protocolos';S.sbOpen=false;renderApp()"><span class="sb-ico">8</span>Protocolos</div><div class="sb-grp" style="margin-top:8px">Sistema</div><div class="sb-item" onclick="localStorage.clear();location.reload()"><span class="sb-ico">[X]</span>Reconfigurar BD</div></nav><div class="sb-foot"><p>Virtus v3.0 Online<br>GitHub Pages + Supabase</p></div></div><div class="main"><div class="topbar"><div style="display:flex;align-items:center;gap:12px"><button class="btn btn-ghost menu-toggle" onclick="S.sbOpen=!S.sbOpen;renderApp()">☰</button><div><div class="tb-title">Dashboard</div><div class="tb-sub">Virtus / Dashboard</div></div></div><div class="tb-right"><button class="btn btn-ghost" onclick="loadData().then(renderPage)" title="Atualizar">↻</button><button class="btn btn-ghost" onclick="dlHtml()" title="Baixar sistema (.html)" style="font-size:16px">⇓</button></div></div><div class="content"><div id="top-alert"></div><div id="pg"><div class="stats-grid" style="grid-template-columns:repeat(6,1fr)"><div class="stat am"><div class="stat-lbl">Aguardando</div><div class="stat-val am">2</div></div><div class="stat"><div class="stat-lbl">Fat. Autorizado</div><div class="stat-val tl">0</div></div><div class="stat pu"><div class="stat-lbl">Fat. Realizado</div><div class="stat-val" style="color:var(--pu)">0</div></div><div class="stat rd"><div class="stat-lbl">Pgto. Pendente</div><div class="stat-val rd">1</div></div><div class="stat gn"><div class="stat-lbl">Pgto. Realizado</div><div class="stat-val gn">0</div></div><div class="stat"><div class="stat-lbl">Cirurgias</div><div class="stat-val">3</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px"><div class="card" style="padding:14px 18px;border-top:3px solid var(--rd)"><div style="display:flex;justify-content:space-between;align-items:center"><div class="stat-lbl" style="margin:0;color:var(--rd)">Total Pendente de Faturamento</div><div style="font-size:20px;font-weight:800;color:var(--rd)">R$&nbsp;2.000,00</div></div></div><div class="card" style="padding:14px 18px;border-top:3px solid var(--gn)"><div style="display:flex;justify-content:space-between;align-items:center"><div class="stat-lbl" style="margin:0;color:var(--gn)">Total Faturado</div><div style="font-size:20px;font-weight:800;color:var(--gn)">R$&nbsp;2.200,00</div></div></div></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px"><div class="card"><div class="c-hd">Cirurgias por Status</div><div style="overflow-x:auto;padding:4px 0"><svg width="100%" viewBox="0 0 294 164" xmlns="http://www.w3.org/2000/svg" style="overflow:visible"><g><rect x="14" y="0" width="42" height="120" rx="4" fill="var(--am)" opacity="0.85"></rect><text x="35" y="-5" text-anchor="middle" font-size="11" font-weight="700" fill="var(--am)">2</text><text x="35" y="134" text-anchor="middle" font-size="9" fill="var(--tx3)">Aguardando</text></g><g><rect x="70" y="120" width="42" height="0" rx="4" fill="var(--tl)" opacity="0.85"></rect><text x="91" y="134" text-anchor="middle" font-size="9" fill="var(--tx3)">Autorizado</text></g><g><rect x="126" y="120" width="42" height="0" rx="4" fill="var(--pu)" opacity="0.85"></rect><text x="147" y="134" text-anchor="middle" font-size="9" fill="var(--tx3)">Faturado</text></g><g><rect x="182" y="60" width="42" height="60" rx="4" fill="var(--rd)" opacity="0.85"></rect><text x="203" y="55" text-anchor="middle" font-size="11" font-weight="700" fill="var(--rd)">1</text><text x="203" y="134" text-anchor="middle" font-size="9" fill="var(--tx3)">Pgto.Pend.</text></g><g><rect x="238" y="120" width="42" height="0" rx="4" fill="var(--gn)" opacity="0.85"></rect><text x="259" y="134" text-anchor="middle" font-size="9" fill="var(--tx3)">Pgto.Real.</text></g></svg></div></div><div class="card"><div class="c-hd">Pendente de Faturamento por Cliente (R$)</div><div style="display:flex;align-items:center;gap:14px"><svg width="140" height="140" viewBox="0 0 100 100"><path d="M50,6 A44,44,0,1,1,49.99999999999999,6 L49.99999999999999,26 A24,24,0,1,0,50,26 Z" fill="#009688" stroke="#fff" stroke-width="1.5"><title>Hospital da Luz: R$&nbsp;2.000,00 (100%)</title></path><title>R$&nbsp;2.000,00</title><text x="50" y="46" text-anchor="middle" font-size="8" font-weight="800" fill="var(--tld)">R$ 2,0K</text><text x="50" y="56" text-anchor="middle" font-size="6.5" fill="var(--tx3)">total</text></svg><div style="flex:1"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px"><span style="width:11px;height:11px;border-radius:3px;background:#009688;flex-shrink:0"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx2)">Hospital da Luz</span><strong style="color:var(--tx)">100%</strong></div></div></div></div><div class="card"><div class="c-hd">Cirurgias Pendentes por Cliente (Qtd)</div><div style="display:flex;align-items:center;gap:14px"><svg width="140" height="140" viewBox="0 0 100 100"><path d="M50,6 A44,44,0,1,1,49.99999999999999,6 L49.99999999999999,26 A24,24,0,1,0,50,26 Z" fill="#009688" stroke="#fff" stroke-width="1.5"><title>Hospital da Luz: 1 cirurgia (100%)</title></path><title>1 cirurgia</title><text x="50" y="46" text-anchor="middle" font-size="8" font-weight="800" fill="var(--tld)">1 cir.</text><text x="50" y="56" text-anchor="middle" font-size="6.5" fill="var(--tx3)">total</text></svg><div style="flex:1"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px"><span style="width:11px;height:11px;border-radius:3px;background:#009688;flex-shrink:0"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx2)">Hospital da Luz</span><strong style="color:var(--tx)">100%</strong></div></div></div></div></div><div class="dash-grid"><div class="card"><div class="c-hd">Ultimas Cirurgias</div><div class="tbl-wrap"><table><thead><tr><th>Paciente</th><th>Hospital</th><th>Data</th><th>Status</th><th>Vl.Utilizado</th></tr></thead><tbody><tr><td style="font-weight:600">Paula Molina</td><td style="color:var(--tx2)">Hospital da Luz</td><td>29/05/2026</td><td><span class="badge bag">Aguardando Autorizacao de Faturamento</span></td><td style="font-weight:700;color:var(--tl)">R$&nbsp;0,00</td></tr><tr><td style="font-weight:600">Marcelo Lemos</td><td style="color:var(--tx2)">Hospital Nove de Julho</td><td>04/04/2025</td><td><span class="badge bpp">Pendencia de Pagamento</span></td><td style="font-weight:700;color:var(--tl)">R$&nbsp;200,00</td></tr><tr><td style="font-weight:600">Mauricio Souza</td><td style="color:var(--tx2)">Hospital da Luz</td><td>01/01/2026</td><td><span class="badge bag">Aguardando Autorizacao de Faturamento</span></td><td style="font-weight:700;color:var(--tl)">R$&nbsp;4.000,00</td></tr></tbody></table></div></div><div style="display:flex;flex-direction:column;gap:14px"><div class="card"><div class="c-hd">Acoes Rapidas</div><div style="display:flex;flex-direction:column;gap:7px"><button class="btn btn-p" onclick="S.page='cirurgias';renderApp();setTimeout(()=&gt;openMCir(null),80)">+ Nova Cirurgia</button><button class="btn btn-s" onclick="S.page='clientes';renderApp();setTimeout(()=&gt;openMDev(null),80)">+ Novo Cliente</button><button class="btn btn-s" onclick="S.page='relatorios';renderApp()">Ver Relatorios</button><button class="btn btn-s" onclick="S.page='agenda';renderApp()">Ver Agenda</button></div></div><div class="card"><div class="c-hd">Proximas Acoes</div><div class="ag-item"><div class="ag-date"><div class="ag-d">30</div><div class="ag-m">MAI.</div></div><div class="ag-content"><div class="ag-title">CObrar OC</div><div class="ag-sub">Marcelo Lemos</div></div></div></div></div></div></div></div></div></div></div>
 <script>
 "use strict";
 const SBU='vt_url',SBK='vt_key';
@@ -828,7 +826,9 @@ function mudarTab(t){
 function renderMCir(){
   const tabs=['geral','orcado','autorizado','utilizado','fat_autorizado','faturado','saldo','evidencias','atividades'];
   const tabLabels={geral:'Geral',orcado:'F1 Orcado',autorizado:'F2 Autorizado',utilizado:'F3 Utilizado',fat_autorizado:'F4 Fat.Autorizado',faturado:'F5 Faturado',saldo:'F6 Saldo',evidencias:'Evidencias',atividades:'Atividades ('+(CF.atividades||[]).length+')'};
-  const tabsH=tabs.map(t=>'<div class="tab'+(CT===t?' active':'')+' cir-tab" data-tab="'+t+'">'+tabLabels[t]+'</div>').join('');
+  const tabsH=tabs.map(function(t){
+    return '<div class="tab'+(CT===t?' active':'')+' cir-tab" data-tab="'+t+'" onclick="mudarTab(this.dataset.tab)">'+tabLabels[t]+'</div>';
+  }).join('');
 
   const hOpts=S.devs.filter(d=>d.tipo==='Hospital').map(h=>'<option value="'+h.id+'"'+(CF.hospital_id===h.id?' selected':'')+'>'+esc(h.razao_social)+'</option>').join('');
   const oOpts=S.devs.filter(d=>d.tipo==='Operadora').map(o=>'<option value="'+o.id+'"'+(CF.operadora_id===o.id?' selected':'')+'>'+esc(o.razao_social)+'</option>').join('');
@@ -887,22 +887,7 @@ function renderMCir(){
     +'<button class="btn btn-p" id="bsc">Gravar Cirurgia</button>'
     +'</div></div></div>';
   document.getElementById('bsc').onclick=saveCir;
-  setTimeout(function(){
-    applyDateMasks();
-    // Event delegation para as abas do modal
-    var wrap=document.getElementById('mcir-wrap');
-    if(!wrap)return;
-    // Remover listener anterior se existir
-    if(wrap._tabListener){wrap.removeEventListener('click',wrap._tabListener);}
-    wrap._tabListener=function(e){
-      var tab=e.target.closest('.cir-tab');
-      if(tab){
-        var t=tab.getAttribute('data-tab');
-        if(t)mudarTab(t);
-      }
-    };
-    wrap.addEventListener('click',wrap._tabListener);
-  },60);
+  setTimeout(applyDateMasks,60);
 }
 
 function buildMatTable(k,withConf){
@@ -2277,5 +2262,5 @@ function dlHtml(){
   renderSetup();
 })();
 </script>
-</body>
-</html>
+
+</body></html>
