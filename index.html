@@ -2,20 +2,24 @@
 <html>
 <head>
 <meta charset="UTF-8"/>
-<title>Virtus — Redirecionando...</title>
+<title>Virtus</title>
 <script>
-  var hash = window.location.hash || window.location.search || '';
-  var base = 'https://virtuspendfat.github.io/virtus/virtus.html';
-  if(hash){
-    window.location.replace(base + hash);
+  // Captura qualquer hash/query da URL e redireciona para o sistema
+  var dest = 'https://virtuspendfat.github.io/virtus/virtus.html';
+  var hash = window.location.hash || '';
+  var search = window.location.search || '';
+  if (hash) {
+    window.location.replace(dest + hash);
+  } else if (search) {
+    window.location.replace(dest + search);
   } else {
-    window.location.replace(base);
+    window.location.replace(dest);
   }
 </script>
 </head>
 <body>
-  <p style="font-family:sans-serif;text-align:center;margin-top:40px;color:#3D8A74">
-    Redirecionando para o Virtus...
-  </p>
+<p style="font-family:sans-serif;text-align:center;margin-top:80px;color:#3D8A74;font-size:18px">
+  Redirecionando para o Virtus...
+</p>
 </body>
 </html>
