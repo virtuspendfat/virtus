@@ -3184,6 +3184,24 @@ function dlHtml(){
 
   // ── Capturar token do hash da URL (link de convite/reset) ──
   var hashStr=window.location.hash||'';
+  // Tratar erro de link expirado
+  if(hashStr&&hashStr.includes('error=')){
+    var errParams={};
+    hashStr.replace(/^#/,'').split('&').forEach(function(p){
+      var kv=p.split('=');
+      errParams[decodeURIComponent(kv[0])]=decodeURIComponent((kv[1]||'').replace(/\+/g,' '));
+    });
+    history.replaceState(null,null,window.location.pathname+window.location.search);
+    // Mostrar tela de login com mensagem de erro
+    if(!localStorage.getItem(SBU)||!localStorage.getItem(SBK)){renderSetup();return;}
+    DB.init(localStorage.getItem(SBU),localStorage.getItem(SBK));
+    if(errParams.error_code==='otp_expired'){
+      renderSetup('Link expirado. Use "Esqueci minha senha" para receber um novo link de acesso.');
+    } else {
+      renderSetup('Erro de autenticacao: '+(errParams.error_description||errParams.error||'Link invalido.'));
+    }
+    return;
+  }
   if(hashStr&&hashStr.includes('access_token=')){
     var params={};
     hashStr.replace(/^#/,'').split('&').forEach(function(p){
