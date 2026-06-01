@@ -2634,7 +2634,7 @@ function renderUsuarios(){
       +'<td><div class="td-act">'
       +'<button class="btn btn-xs btn-s usr-edit-btn" data-id="'+u.id+'">Editar</button>'
       +(u.supabase_uid!=(S.user&&S.user.id)
-        ?'<button class="btn btn-xs" style="background:var(--'+( u.ativo!==false?'am2);color:var(--am)':' gn2);color:var(--gn)')+';border:1px solid currentColor" data-id="'+u.id+'" data-ativo="'+(u.ativo!==false?'1':'0')+'" class="usr-toggle-btn">'+( u.ativo!==false?'Desativar':'Ativar')+'</button>'
+        ?'<button class="btn btn-xs usr-toggle-btn" style="background:var(--'+(u.ativo!==false?'am2);color:var(--am)':'gn2);color:var(--gn)')+';border:1px solid currentColor" data-id="'+u.id+'" data-ativo="'+(u.ativo!==false?'1':'0')+'">'+(u.ativo!==false?'Desativar':'Ativar')+'</button>'
         :'')
       +'</div></td></tr>';
   }).join('');
@@ -2833,7 +2833,7 @@ async function toggleUsuario(id,ativoAtual){
   if(r.error){showAlert('Erro: '+r.error.message,'danger');return;}
   await loadData();
   renderUsuarios();
-  showAlert(novoAtual?'Usuario ativado!':'Usuario desativado!','success');
+  showAlert(novoAtivo?'Usuario ativado!':'Usuario desativado!','success');
 }
 
 // ══════════════════════════════════════════════════════════
