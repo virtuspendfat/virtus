@@ -2809,28 +2809,23 @@ async function salvarConvite(){
 }
 
 async function reenviarConvite(id,email,nome){
-  if(!confirm('Reenviar acesso para '+email+'?\n\nO usuario receberá um e-mail para definir/redefinir sua senha e acessar o sistema.'))return;
+  if(!confirm('Reenviar acesso para '+email+'?\n\nO usuario receberá um e-mail para definir/redefinir sua senha.'))return;
   showAlert('Enviando...','info');
   try{
-    // Usar Edge Function — tem permissão admin para passar o redirectTo correto
-    var r=await fetch(DB.url+'/functions/v1/virtus-invite',{
+    // /auth/v1/recover usa o Site URL configurado no Supabase como redirect
+    var r=await fetch(DB.url+'/auth/v1/recover',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
-        'Authorization':'Bearer '+localStorage.getItem('vt_token')
+        'apikey':DB.key
       },
-      body:JSON.stringify({
-        email:email,
-        nome:nome,
-        perfil:'operador',
-        reenvio:true
-      })
+      body:JSON.stringify({email:email})
     });
-    var d=await r.json();
-    if(r.ok&&!d.error){
-      showAlert('E-mail reenviado para '+email+'!','success');
+    if(r.ok){
+      showAlert('E-mail enviado para '+email+'! O usuario deve verificar a caixa de entrada.','success');
     } else {
-      showAlert('Erro: '+(d.error||d.message||'Falha ao enviar.'),'danger');
+      var d=await r.json();
+      showAlert('Erro: '+(d.error_description||d.msg||'Falha ao enviar.'),'danger');
     }
   }catch(e){
     showAlert('Erro: '+e.message,'danger');
