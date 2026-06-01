@@ -3184,6 +3184,39 @@ function dlHtml(){
   var url=localStorage.getItem(SBU),key=localStorage.getItem(SBK);
   if(!url||!key){renderSetup();return;}
   DB.init(url,key);
+
+  // ── Capturar token do hash da URL (link de convite/reset) ──
+  var hashStr=window.location.hash||'';
+  if(hashStr&&hashStr.includes('access_token=')){
+    var params={};
+    hashStr.replace(/^#/,'').split('&').forEach(function(p){
+      var kv=p.split('=');
+      params[decodeURIComponent(kv[0])]=decodeURIComponent(kv[1]||'');
+    });
+    if(params.access_token){
+      localStorage.setItem('vt_token',params.access_token);
+      if(params.refresh_token)localStorage.setItem('vt_refresh',params.refresh_token);
+      // Limpar hash da URL sem recarregar
+      history.replaceState(null,null,window.location.pathname+window.location.search);
+      // Carregar perfil e entrar no sistema
+      var authUser=await DB.getUser();
+      if(authUser&&authUser.id){
+        var perfil=await carregarPerfil(authUser.id,authUser.email);
+        S.user={
+          id:authUser.id,
+          email:authUser.email,
+          nome:perfil?perfil.nome:authUser.email.split('@')[0],
+          perfil:perfil?perfil.perfil:'operador'
+        };
+        localStorage.setItem('vt_user',JSON.stringify(S.user));
+        await loadData();
+        renderApp();
+        showAlert('Bem-vindo ao Virtus! Defina uma senha segura em seu perfil.','success');
+        return;
+      }
+    }
+  }
+
   // Verificar se há token salvo e se ainda é válido
   var savedUser=localStorage.getItem('vt_user');
   var token=localStorage.getItem('vt_token');
