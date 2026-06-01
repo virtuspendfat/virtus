@@ -2633,6 +2633,7 @@ function renderUsuarios(){
       +'<td style="font-size:11px;color:var(--tx3)">'+fmtD((u.created_at||'').slice(0,10))+'</td>'
       +'<td><div class="td-act">'
       +'<button class="btn btn-xs btn-s usr-edit-btn" data-id="'+u.id+'">Editar</button>'
+      +'<button class="btn btn-xs btn-s usr-reinvite-btn" data-id="'+u.id+'" data-email="'+esc(u.email)+'" data-nome="'+esc(u.nome)+'">&#9993; Reenviar</button>'
       +(u.supabase_uid!=(S.user&&S.user.id)
         ?'<button class="btn btn-xs usr-toggle-btn" style="background:var(--'+(u.ativo!==false?'am2);color:var(--am)':'gn2);color:var(--gn)')+';border:1px solid currentColor" data-id="'+u.id+'" data-ativo="'+(u.ativo!==false?'1':'0')+'">'+(u.ativo!==false?'Desativar':'Ativar')+'</button>'
         :'')
@@ -2667,6 +2668,11 @@ function renderUsuarios(){
       var id=btn.getAttribute('data-id');
       if(!id)return;
       if(btn.classList.contains('usr-edit-btn'))openModalEditarUsuario(id);
+      else if(btn.classList.contains('usr-reinvite-btn')){
+        var email=btn.getAttribute('data-email');
+        var nome=btn.getAttribute('data-nome');
+        reenviarConvite(id,email,nome);
+      }
       else if(btn.classList.contains('usr-toggle-btn')){
         var ativo=btn.getAttribute('data-ativo')==='1';
         toggleUsuario(id,ativo);
@@ -2799,6 +2805,29 @@ async function salvarConvite(){
   }catch(e){
     if(errEl)errEl.innerHTML='<div class="alert al-d">Erro: '+esc(e.message)+'</div>';
     if(btn){btn.disabled=false;btn.innerHTML='Enviar Convite';}
+  }
+}
+
+async function reenviarConvite(id,email,nome){
+  if(!confirm('Reenviar convite para '+email+'?'))return;
+  showAlert('Reenviando convite...','info');
+  try{
+    var r=await fetch(DB.url+'/functions/v1/virtus-invite',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+localStorage.getItem('vt_token')
+      },
+      body:JSON.stringify({email:email,nome:nome,perfil:'operador'})
+    });
+    var d=await r.json();
+    if(!r.ok||d.error){
+      showAlert('Erro: '+(d.error||d.message||'Falha ao reenviar.'),'danger');
+      return;
+    }
+    showAlert('Convite reenviado para '+email+'!','success');
+  }catch(e){
+    showAlert('Erro: '+e.message,'danger');
   }
 }
 
