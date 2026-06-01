@@ -2770,30 +2770,26 @@ async function salvarConvite(){
   var btn=document.getElementById('btn-salvar-usr');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Enviando...';}
 
-  // Chamar Supabase Admin API para convidar usuário
   try{
-    var r=await fetch(DB.url+'/auth/v1/invite',{
+    // Usar Edge Function "virtus-invite" que tem service_role key
+    var r=await fetch(DB.url+'/functions/v1/virtus-invite',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
-        'apikey':DB.key,
         'Authorization':'Bearer '+localStorage.getItem('vt_token')
       },
-      body:JSON.stringify({email:email.trim()})
+      body:JSON.stringify({
+        email:email.trim(),
+        nome:nome.trim(),
+        perfil:perfil
+      })
     });
     var d=await r.json();
-    if(!r.ok){
-      if(errEl)errEl.innerHTML='<div class="alert al-d">'+(d.msg||d.error_description||'Erro ao convidar.')+'</div>';
+    if(!r.ok||d.error){
+      var msg=d.error||d.message||'Erro ao enviar convite.';
+      if(errEl)errEl.innerHTML='<div class="alert al-d">'+esc(msg)+'</div>';
       if(btn){btn.disabled=false;btn.innerHTML='Enviar Convite';}
       return;
-    }
-    // Criar registro na tabela usuarios com o uid retornado
-    var uid=d.id||d.user&&d.user.id||'';
-    if(uid){
-      await DB.ins('usuarios',{
-        supabase_uid:uid,email:email.trim(),
-        nome:nome.trim(),perfil:perfil,ativo:true
-      });
     }
     var modal=document.getElementById('modal-usr');
     if(modal)modal.remove();
