@@ -507,9 +507,10 @@ const DB={
   async resetPassword(email){try{const r=await fetch(this.url+'/auth/v1/recover',{method:'POST',headers:{'Content-Type':'application/json','apikey':this.key},body:JSON.stringify({email})});return r.ok;}catch(e){return false;}}};
 
 /* ── STATE ───────────────────────────────────────────────── */
-const S={page:'dashboard',devs:[],cirs:[],prods:[],protos:[],loading:false,sbOpen:false,
+const S={page:'dashboard',devs:[],cirs:[],prods:[],protos:[],usuarios:[],
+  loading:false,sbOpen:false,
   alert:null,atimer:null,searchDev:'',tipoDev:'Todos',searchCir:'',stCir:'todos',searchProd:'',
-  filtHosp:'',filtOper:'',filtOrigem:'',
+  filtHosp:'',filtOper:'',filtOrigem:'',filtMinhas:false,
   user:null}; // user = {id, email, perfil, nome}
 
 const STATUS={aguardando:'Aguardando Autorizacao de Faturamento',autorizado:'Faturamento Autorizado',
@@ -566,7 +567,7 @@ const matTot=arr=>(arr||[]).reduce((s,m)=>s+parseFloat(m.vTotal||0),0);
 
 const emptyMat=()=>({_id:uid(),ref:'',desc:'',qty:1,vUnit:'',vTotal:''});
 const emptyAtv=()=>({_id:uid(),tipo:'E-mail',data:'',horario:'',duracao:'',contato:'',telefone:'',email:'',registro:'',proximo_passo:'',data_proximo:'',anexos:[]});
-const emptyCir=()=>({paciente:'',medico:'',hospital_id:'',operadora_id:'',data_cirurgia:'',especialidade:'',procedimento:'',origem:'Opmenexo',status:'aguardando',obs:'',fonte_pagadora:'',id_cotacao_portal:'',mat_orcado:[emptyMat()],mat_autorizado:[emptyMat()],mat_utilizado:[emptyMat()],mat_fat_autorizado:[emptyMat()],mat_faturado:[emptyMat()],resp_orcado:[],resp_autorizado:[],resp_utilizado:[],resp_fat_autorizado:[],resp_faturado:[],evidencias_pre:[],evidencias_pos:[],atividades:[]});
+const emptyCir=()=>({paciente:'',medico:'',hospital_id:'',operadora_id:'',data_cirurgia:'',especialidade:'',procedimento:'',origem:'Opmenexo',status:'aguardando',obs:'',fonte_pagadora:'',id_cotacao_portal:'',responsavel_id:'',mat_orcado:[emptyMat()],mat_autorizado:[emptyMat()],mat_utilizado:[emptyMat()],mat_fat_autorizado:[emptyMat()],mat_faturado:[emptyMat()],resp_orcado:[],resp_autorizado:[],resp_utilizado:[],resp_fat_autorizado:[],resp_faturado:[],evidencias_pre:[],evidencias_pos:[],atividades:[]});
 const emptyDev=()=>({razao_social:'',cnpj:'',tipo:'Hospital',endereco:'',cidade:'',uf:'',cep:'',telefones:'',emails:'',obs:'',contatos:[]});
 const emptyCnt=()=>({_id:uid(),nome:'',departamento:'Faturamento',nivel:'Analista',telefone:'',email:''});
 
@@ -760,13 +761,15 @@ async function doLogout(){
 /* ── LOAD DATA ───────────────────────────────────────────── */
 async function loadData(){
   S.loading=true;
-  const[rd,rc,rp,rpt]=await Promise.all([
+  const[rd,rc,rp,rpt,ru]=await Promise.all([
     DB.sel('devedores',{select:'*',order:'razao_social'}),
     DB.sel('cirurgias',{select:'*',order:'created_at.desc'}),
     DB.sel('produtos',{select:'*',order:'referencia'}),
-    DB.sel('protocolos',{select:'*',order:'nome'})
+    DB.sel('protocolos',{select:'*',order:'nome'}),
+    DB.sel('usuarios',{select:'*',order:'nome'})
   ]);
   S.prods=(rp.data||[]);
+  S.usuarios=(ru&&ru.data)?ru.data:[];
   S.protos=(rpt.data||[]).map(function(p){return Object.assign({},p,{itens:pJ(p.itens)});});
   S.devs=(rd.data||[]).map(d=>({...d,contatos:pJ(d.contatos)}));
   S.cirs=(rc.data||[]).map(function(c){
@@ -814,9 +817,16 @@ function renderApp(){
     {id:'produtos',ico:'7',lbl:'Produtos'},
     {id:'protocolos',ico:'8',lbl:'Protocolos'},
     {id:'arquivadas',ico:'9',lbl:'Cirurgias Arquivadas'},
+    {id:'usuarios',ico:'U',lbl:'Usuarios',adminOnly:true},
   ];
-  const navH=nav.map(n=>'<div class="sb-item'+(S.page===n.id?' active':'')+'" onclick="S.page=\''+n.id+'\';S.sbOpen=false;renderApp()"><span class="sb-ico">'+n.ico+'</span>'+n.lbl+'</div>').join('');
-  const titles={dashboard:'Dashboard',cirurgias:'Cirurgias',clientes:'Clientes',agenda:'Agenda',relatorios:'Relatorios',importar:'Importar Dados'};
+  // Filtrar nav por perfil do usuário
+  const isAdmin=(S.user&&S.user.perfil==='admin');
+  const navVisible=nav.filter(function(n){
+    if(n.adminOnly&&!isAdmin)return false;
+    return true;
+  });
+  const navH=navVisible.map(n=>'<div class="sb-item'+(S.page===n.id?' active':'')+'" onclick="S.page=\''+n.id+'\';S.sbOpen=false;renderApp()"><span class="sb-ico">'+n.ico+'</span>'+n.lbl+'</div>').join('');
+  const titles={dashboard:'Dashboard',cirurgias:'Cirurgias',clientes:'Clientes',agenda:'Agenda',relatorios:'Relatorios',importar:'Importar Dados',produtos:'Produtos',protocolos:'Protocolos',arquivadas:'Cirurgias Arquivadas',usuarios:'Gestao de Usuarios'};
   document.getElementById('app').innerHTML=
     '<div class="app">'
     +'<div class="sb-ov'+(S.sbOpen?' show':'')+'" onclick="S.sbOpen=false;renderApp()"></div>'
@@ -841,7 +851,56 @@ function renderApp(){
   if(S.alert)showAlert(S.alert.msg,(S.alert.type||'success'));
 }
 
+// ── PERMISSIONAMENTO ──────────────────────────────────────
+// Mapa de permissões por perfil
+const PERMS={
+  admin:{
+    pages:['dashboard','cirurgias','clientes','agenda','relatorios',
+           'importar','produtos','protocolos','arquivadas','usuarios'],
+    acoes:['criar_cir','editar_cir','arquivar_cir','excluir_cir',
+           'gerir_usuarios','exportar','editar_clientes',
+           'editar_produtos','editar_protocolos']
+  },
+  operador:{
+    pages:['dashboard','cirurgias','clientes','agenda','relatorios',
+           'produtos','protocolos','arquivadas'],
+    acoes:['criar_cir','editar_cir','exportar',
+           'editar_clientes','editar_produtos','editar_protocolos']
+  },
+  visualizador:{
+    pages:['dashboard','cirurgias','agenda','relatorios','arquivadas'],
+    acoes:[]
+  }
+};
+
+function getPerfil(){
+  return (S.user&&S.user.perfil)||'visualizador';
+}
+
+function canPage(page){
+  var p=PERMS[getPerfil()];
+  return p&&p.pages.indexOf(page)>=0;
+}
+
+function canDo(acao){
+  var p=PERMS[getPerfil()];
+  return p&&p.acoes.indexOf(acao)>=0;
+}
+
+// Redireciona para dashboard se sem permissão
+function guardPage(page){
+  if(!canPage(page)){
+    showAlert('Acesso restrito para seu perfil.','warn');
+    S.page='dashboard';
+    renderApp();
+    return false;
+  }
+  return true;
+}
+
+
 function renderPage(){
+  if(!guardPage(S.page))return;
   if(S.page==='dashboard')renderDash();
   else if(S.page==='cirurgias')renderCirs();
   else if(S.page==='clientes')renderClients();
@@ -851,6 +910,7 @@ function renderPage(){
   else if(S.page==='produtos')renderProdutos();
   else if(S.page==='protocolos')renderProtocolos();
   else if(S.page==='arquivadas')renderArquivadas();
+  else if(S.page==='usuarios')renderUsuarios();
 }
 
 /* ── DASHBOARD ───────────────────────────────────────────── */
@@ -1050,8 +1110,10 @@ function renderCirs(){
   // Filtros ativos
   var q=(S.searchCir||'').toLowerCase().trim();
   var filt=S.cirs.filter(function(x){
-    if(x.arquivada)return false; // não mostrar arquivadas aqui
+    if(x.arquivada)return false;
     if(S.stCir!=='todos'&&x.status!==S.stCir)return false;
+    // Filtro 'Minhas Cirurgias'
+    if(S.filtMinhas&&S.user&&x.responsavel_id!==S.user.id)return false;
     if(S.filtHosp&&x.hospital_id!==S.filtHosp)return false;
     if(S.filtOper&&x.operadora_id!==S.filtOper)return false;
     if(S.filtOrigem&&x.origem!==S.filtOrigem)return false;
@@ -1088,7 +1150,7 @@ function renderCirs(){
       +'<td><div class="td-act">'
       +'<button class="btn btn-xs btn-p cir-dos-btn" data-id="'+cc.id+'">Dossie</button>'
       +'<button class="btn btn-xs btn-s cir-edit-btn" data-id="'+cc.id+'">Acessar</button>'
-      +'<button class="btn btn-xs cir-arq-btn" style="background:var(--sf2);color:var(--tx2);border:1px solid var(--bd)" title="Arquivar cirurgia" data-id="'+cc.id+'">&#128196;</button>'
+      +(canDo('arquivar_cir')?'<button class="btn btn-xs cir-arq-btn" style="background:var(--sf2);color:var(--tx2);border:1px solid var(--bd)" title="Arquivar cirurgia" data-id="'+cc.id+'">&#128196;</button>':'')
       +'</div></td></tr>';
   }).join('');
 
@@ -1118,11 +1180,11 @@ function renderCirs(){
     +'<div class="pg-sub">'+total+' registros | '+ativos+' exibidos</div></div>'
     +'<div style="display:flex;gap:8px">'
     +'<button class="btn btn-s" id="btn-export-xls" title="Exportar para Excel">&#128202; Excel</button>'
-    +'<button class="btn btn-p" id="btn-nova-cir">+ Nova Cirurgia</button>'
+    +(canDo('criar_cir')?'<button class="btn btn-p" id="btn-nova-cir">+ Nova Cirurgia</button>':'')
     +'</div></div>'
     // Barra de filtros
     +'<div class="card" style="margin-bottom:12px;padding:12px 16px">'
-    +'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:10px;align-items:center">'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+'<button class="btn '+(S.filtMinhas?'btn-p':'btn-s')+'" id="btn-minhas-cir">&#128100; Minhas</button>'+'</div>'+'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:10px;align-items:center">'
     +'<div class="sw"><span class="sw-ic">?</span>'
     +'<input type="text" id="cir-search-inp" placeholder="Buscar paciente, medico, hospital, operadora, ID cotacao..." value="'+esc(S.searchCir||'')+'"/></div>'
     +'<select id="cir-st-sel">'+stOpts+'</select>'
@@ -1162,6 +1224,8 @@ function renderCirs(){
 
     var bnova=document.getElementById('btn-nova-cir');
     if(bnova)bnova.onclick=function(){openMCir(null);};
+    var bmin=document.getElementById('btn-minhas-cir');
+    if(bmin)bmin.onclick=function(){S.filtMinhas=!S.filtMinhas;renderCirs();};
 
     var bxls=document.getElementById('btn-export-xls');
     if(bxls)bxls.onclick=function(){exportCirsXLS(filt);};
@@ -1303,7 +1367,7 @@ function renderMCir(){
       +'</div>'
       +'<div class="form-row fr2">'
       +'<div><label>ID Cotacao Portal</label><input type="text" value="'+esc(CF.id_cotacao_portal||'')+'" oninput="CF.id_cotacao_portal=this.value" placeholder="Ex: COT-2026-00123" style="font-family:monospace"/></div>'
-      +'<div></div>'
+      +'<div><label>Responsavel</label>'+'<select id="sel-resp-cir">'+'<option value="">-- Sem responsavel --</option>'+S.usuarios.map(function(u){return '<option value="'+u.id+'"'+(CF.responsavel_id===u.id?' selected':'')+'>'+esc(u.nome)+'</option>';}).join('')+'</select></div>'
       +'</div>';
   } else if(CT==='orcado'||CT==='autorizado'||CT==='utilizado'||CT==='fat_autorizado'||CT==='faturado'){
     var k={'orcado':'mat_orcado','autorizado':'mat_autorizado','utilizado':'mat_utilizado','fat_autorizado':'mat_fat_autorizado','faturado':'mat_faturado'}[CT];
@@ -1340,6 +1404,9 @@ function renderMCir(){
   document.getElementById('bsc').onclick=saveCir;
   setTimeout(function(){
     applyDateMasks();
+    // Bind select de responsável
+    var selResp=document.getElementById('sel-resp-cir');
+    if(selResp)selResp.onchange=function(){CF.responsavel_id=this.value;};
     var modalEl=document.getElementById('mcir-wrap');
     if(!modalEl)return;
     // Abas: onclick via JS puro
@@ -2544,6 +2611,239 @@ async function restaurarCir(id){
   renderArquivadas();
   showAlert('Cirurgia restaurada!','success');
 }
+
+// ══════════════════════════════════════════════════════════
+// MÓDULO: GESTÃO DE USUÁRIOS (Fase 2)
+// ══════════════════════════════════════════════════════════
+
+function renderUsuarios(){
+  if(!canDo('gerir_usuarios')){
+    setHTML('pg','<div class="empty"><h3>Acesso Restrito</h3><p>Apenas administradores podem gerenciar usuarios.</p></div>');
+    return;
+  }
+
+  var rows=S.usuarios.map(function(u){
+    var perfilLabel={admin:'Admin',operador:'Operador',visualizador:'Visualizador'}[u.perfil]||u.perfil;
+    var badgeCls={admin:'bpr',operador:'bau',visualizador:'bag'}[u.perfil]||'bag';
+    return '<tr>'
+      +'<td style="font-weight:600">'+esc(u.nome)+'</td>'
+      +'<td>'+esc(u.email)+'</td>'
+      +'<td><span class="badge '+badgeCls+'">'+perfilLabel+'</span></td>'
+      +'<td>'+(u.ativo!==false?'<span style="color:var(--gn);font-weight:600">Ativo</span>':'<span style="color:var(--tx3)">Inativo</span>')+'</td>'
+      +'<td style="font-size:11px;color:var(--tx3)">'+fmtD((u.created_at||'').slice(0,10))+'</td>'
+      +'<td><div class="td-act">'
+      +'<button class="btn btn-xs btn-s usr-edit-btn" data-id="'+u.id+'">Editar</button>'
+      +(u.supabase_uid!=(S.user&&S.user.id)
+        ?'<button class="btn btn-xs" style="background:var(--'+( u.ativo!==false?'am2);color:var(--am)':' gn2);color:var(--gn)')+';border:1px solid currentColor" data-id="'+u.id+'" data-ativo="'+(u.ativo!==false?'1':'0')+'" class="usr-toggle-btn">'+( u.ativo!==false?'Desativar':'Ativar')+'</button>'
+        :'')
+      +'</div></td></tr>';
+  }).join('');
+
+  setHTML('pg',
+    '<div class="pg-hd"><div>'
+    +'<div class="pg-title">Gestao de Usuarios</div>'
+    +'<div class="pg-sub">'+S.usuarios.length+' usuarios cadastrados</div>'
+    +'</div>'
+    +'<button class="btn btn-p" id="btn-convidar-usr">+ Convidar Usuario</button>'
+    +'</div>'
+    +'<div class="card">'
+    +(S.usuarios.length===0
+      ?'<div class="empty"><h3>Nenhum usuario</h3><p>Clique em + Convidar Usuario para adicionar.</p></div>'
+      :'<div class="tbl-wrap"><table><thead><tr>'
+      +'<th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Cadastro</th><th>Acoes</th>'
+      +'</tr></thead><tbody>'+rows+'</tbody></table></div>')
+    +'</div>'
+  );
+
+  setTimeout(function(){
+    var btnConv=document.getElementById('btn-convidar-usr');
+    if(btnConv)btnConv.onclick=function(){openModalConvidar();};
+
+    var pg=document.getElementById('pg');
+    if(!pg)return;
+    pg.addEventListener('click',function(e){
+      var btn=e.target.closest('button');
+      if(!btn)return;
+      var id=btn.getAttribute('data-id');
+      if(!id)return;
+      if(btn.classList.contains('usr-edit-btn'))openModalEditarUsuario(id);
+      else if(btn.classList.contains('usr-toggle-btn')){
+        var ativo=btn.getAttribute('data-ativo')==='1';
+        toggleUsuario(id,ativo);
+      }
+    });
+  },30);
+}
+
+// ── Modal: Convidar Usuário ────────────────────────────────
+function openModalConvidar(){
+  var old=document.getElementById('modal-usr');
+  if(old)old.remove();
+  var ov=document.createElement('div');
+  ov.id='modal-usr';
+  ov.className='modal-ov';
+  ov.innerHTML='<div class="modal" style="max-width:460px">'
+    +'<div class="modal-hd">'
+    +'<span class="modal-title">Convidar Novo Usuario</span>'
+    +'<button class="modal-x" id="btn-close-usr-modal">&#10005;</button>'
+    +'</div>'
+    +'<div class="modal-body">'
+    +'<p style="font-size:12px;color:var(--tx3);margin-bottom:16px">'
+    +'O usuario recebera um e-mail com link para definir sua senha.</p>'
+    +'<div id="usr-modal-err"></div>'
+    +'<div class="form-row fr2">'
+    +'<div><label>Nome *</label>'
+    +'<input type="text" id="usr-nome" placeholder="Nome completo"/></div>'
+    +'<div><label>Perfil *</label>'
+    +'<select id="usr-perfil">'
+    +'<option value="operador">Operador</option>'
+    +'<option value="visualizador">Visualizador</option>'
+    +'<option value="admin">Admin</option>'
+    +'</select></div>'
+    +'</div>'
+    +'<div class="form-row">'
+    +'<div><label>E-mail *</label>'
+    +'<input type="email" id="usr-email" placeholder="email@empresa.com.br"/></div>'
+    +'</div>'
+    +'</div>'
+    +'<div class="modal-ft">'
+    +'<button class="btn btn-s" id="btn-cancel-usr">Cancelar</button>'
+    +'<button class="btn btn-p" id="btn-salvar-usr">Enviar Convite</button>'
+    +'</div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('btn-close-usr-modal').onclick=function(){ov.remove();};
+  document.getElementById('btn-cancel-usr').onclick=function(){ov.remove();};
+  document.getElementById('btn-salvar-usr').onclick=salvarConvite;
+}
+
+// ── Modal: Editar Usuário ──────────────────────────────────
+function openModalEditarUsuario(id){
+  var u=S.usuarios.find(function(x){return x.id===id;});
+  if(!u)return;
+  var old=document.getElementById('modal-usr');
+  if(old)old.remove();
+  var ov=document.createElement('div');
+  ov.id='modal-usr';
+  ov.className='modal-ov';
+  ov.innerHTML='<div class="modal" style="max-width:460px">'
+    +'<div class="modal-hd">'
+    +'<span class="modal-title">Editar Usuario</span>'
+    +'<button class="modal-x" id="btn-close-usr-modal">&#10005;</button>'
+    +'</div>'
+    +'<div class="modal-body">'
+    +'<div id="usr-modal-err"></div>'
+    +'<div class="form-row fr2">'
+    +'<div><label>Nome *</label>'
+    +'<input type="text" id="usr-nome" value="'+esc(u.nome)+'" placeholder="Nome completo"/></div>'
+    +'<div><label>Perfil *</label>'
+    +'<select id="usr-perfil">'
+    +'<option value="operador"'+(u.perfil==='operador'?' selected':'')+'>Operador</option>'
+    +'<option value="visualizador"'+(u.perfil==='visualizador'?' selected':'')+'>Visualizador</option>'
+    +'<option value="admin"'+(u.perfil==='admin'?' selected':'')+'>Admin</option>'
+    +'</select></div>'
+    +'</div>'
+    +'<div class="form-row">'
+    +'<div><label>E-mail</label>'
+    +'<input type="text" value="'+esc(u.email)+'" disabled style="opacity:.6"/></div>'
+    +'</div>'
+    +'</div>'
+    +'<div class="modal-ft">'
+    +'<button class="btn btn-s" id="btn-cancel-usr">Cancelar</button>'
+    +'<button class="btn btn-p" id="btn-salvar-usr" data-id="'+id+'">Salvar</button>'
+    +'</div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('btn-close-usr-modal').onclick=function(){ov.remove();};
+  document.getElementById('btn-cancel-usr').onclick=function(){ov.remove();};
+  document.getElementById('btn-salvar-usr').onclick=function(){salvarEdicaoUsuario(id);};
+}
+
+// ── Ações: salvar convite, editar, toggle ──────────────────
+async function salvarConvite(){
+  var nome=(document.getElementById('usr-nome')||{}).value||'';
+  var email=(document.getElementById('usr-email')||{}).value||'';
+  var perfil=(document.getElementById('usr-perfil')||{}).value||'operador';
+  var errEl=document.getElementById('usr-modal-err');
+  if(!nome.trim()||!email.trim()){
+    if(errEl)errEl.innerHTML='<div class="alert al-d">Preencha nome e e-mail.</div>';
+    return;
+  }
+  var btn=document.getElementById('btn-salvar-usr');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Enviando...';}
+
+  // Chamar Supabase Admin API para convidar usuário
+  try{
+    var r=await fetch(DB.url+'/auth/v1/invite',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':DB.key,
+        'Authorization':'Bearer '+localStorage.getItem('vt_token')
+      },
+      body:JSON.stringify({email:email.trim()})
+    });
+    var d=await r.json();
+    if(!r.ok){
+      if(errEl)errEl.innerHTML='<div class="alert al-d">'+(d.msg||d.error_description||'Erro ao convidar.')+'</div>';
+      if(btn){btn.disabled=false;btn.innerHTML='Enviar Convite';}
+      return;
+    }
+    // Criar registro na tabela usuarios com o uid retornado
+    var uid=d.id||d.user&&d.user.id||'';
+    if(uid){
+      await DB.ins('usuarios',{
+        supabase_uid:uid,email:email.trim(),
+        nome:nome.trim(),perfil:perfil,ativo:true
+      });
+    }
+    var modal=document.getElementById('modal-usr');
+    if(modal)modal.remove();
+    await loadData();
+    renderUsuarios();
+    showAlert('Convite enviado para '+email+'!','success');
+  }catch(e){
+    if(errEl)errEl.innerHTML='<div class="alert al-d">Erro: '+esc(e.message)+'</div>';
+    if(btn){btn.disabled=false;btn.innerHTML='Enviar Convite';}
+  }
+}
+
+async function salvarEdicaoUsuario(id){
+  var nome=(document.getElementById('usr-nome')||{}).value||'';
+  var perfil=(document.getElementById('usr-perfil')||{}).value||'operador';
+  var errEl=document.getElementById('usr-modal-err');
+  if(!nome.trim()){
+    if(errEl)errEl.innerHTML='<div class="alert al-d">Preencha o nome.</div>';
+    return;
+  }
+  var btn=document.getElementById('btn-salvar-usr');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Salvando...';}
+  var r=await DB.upd('usuarios',{id:id,nome:nome.trim(),perfil:perfil},{id:id});
+  if(r.error){
+    if(errEl)errEl.innerHTML='<div class="alert al-d">Erro: '+esc(r.error.message)+'</div>';
+    if(btn){btn.disabled=false;btn.innerHTML='Salvar';}
+    return;
+  }
+  var modal=document.getElementById('modal-usr');
+  if(modal)modal.remove();
+  await loadData();
+  renderUsuarios();
+  showAlert('Usuario atualizado!','success');
+}
+
+async function toggleUsuario(id,ativoAtual){
+  var novoAtivo=!ativoAtual;
+  var msg=novoAtivo?'Ativar este usuario?':'Desativar este usuario?';
+  if(!confirm(msg))return;
+  var r=await DB.upd('usuarios',{id:id,ativo:novoAtivo},{id:id});
+  if(r.error){showAlert('Erro: '+r.error.message,'danger');return;}
+  await loadData();
+  renderUsuarios();
+  showAlert(novoAtual?'Usuario ativado!':'Usuario desativado!','success');
+}
+
+// ══════════════════════════════════════════════════════════
+// FIM MÓDULO GESTÃO DE USUÁRIOS
+// ══════════════════════════════════════════════════════════
+
 
 function renderRel(){
   var grp=groupBy(RF);
