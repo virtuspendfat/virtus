@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<title>Virtus — Redirecionando...</title>
+<script>
+  // Captura o hash com tokens do Supabase e redireciona para o sistema
+  var hash = window.location.hash || window.location.search || '';
+  var base = 'https://virtuspendfat.github.io/virtus/virtus.html';
+  if(hash){
+    window.location.replace(base + hash);
+  } else {
+    window.location.replace(base);
+  }
+</script>
+</head>
+<body>
+  <p style="font-family:sans-serif;text-align:center;margin-top:40px;color:#3D8A74">
+    Redirecionando para o Virtus...
+  </p>
+</body>
+</html>
