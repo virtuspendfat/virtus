@@ -2344,6 +2344,11 @@ async function saveCir(){
     delete payload.resp_utilizado;
     delete payload.resp_fat_autorizado;
     delete payload.resp_faturado;
+    // Remover campos internos em memória (não existem no banco)
+    delete payload._aprovacoes;
+    delete payload._links;
+    delete payload._msgs;
+    delete payload._msgsBadge;
     var res;
     if(payload.id){res=await DB.upd('cirurgias',payload,{id:payload.id});}
     else{var{id,...ins}=payload;res=await DB.ins('cirurgias',ins);}
