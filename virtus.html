@@ -2809,20 +2809,22 @@ async function salvarConvite(){
 }
 
 async function reenviarConvite(id,email,nome){
-  if(!confirm('Reenviar acesso para '+email+'?\n\nO usuario receberá um e-mail para definir/redefinir sua senha.'))return;
+  if(!confirm('Reenviar acesso para '+email+'?'))return;
   showAlert('Enviando...','info');
   try{
-    // /auth/v1/recover usa o Site URL configurado no Supabase como redirect
-    var r=await fetch(DB.url+'/auth/v1/recover',{
+    // Passar redirect_to como query string — forma correta da API GoTrue
+    var redirectTo=encodeURIComponent('https://virtuspendfat.github.io/virtus/virtus.html');
+    var r=await fetch(DB.url+'/auth/v1/recover?redirect_to='+redirectTo,{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
-        'apikey':DB.key
+        'apikey':DB.key,
+        'Authorization':'Bearer '+DB.key
       },
       body:JSON.stringify({email:email})
     });
     if(r.ok){
-      showAlert('E-mail enviado para '+email+'! O usuario deve verificar a caixa de entrada.','success');
+      showAlert('E-mail de acesso enviado para '+email+'!','success');
     } else {
       var d=await r.json();
       showAlert('Erro: '+(d.error_description||d.msg||'Falha ao enviar.'),'danger');
