@@ -510,7 +510,7 @@ const DB={
 const S={page:'dashboard',devs:[],cirs:[],prods:[],protos:[],usuarios:[],
   loading:false,sbOpen:false,
   alert:null,atimer:null,searchDev:'',tipoDev:'Todos',searchCir:'',stCir:'todos',searchProd:'',
-  filtHosp:'',filtOper:'',filtOrigem:'',filtMinhas:false,
+  filtHosp:'',filtOper:'',filtOrigem:'',filtMinhas:false,agFiltMinhas:false,
   user:null}; // user = {id, email, perfil, nome}
 
 const STATUS={aguardando:'Aguardando Autorizacao de Faturamento',autorizado:'Faturamento Autorizado',
@@ -2047,12 +2047,26 @@ function renderAgenda(){
   var hoje=new Date().toISOString().split('T')[0];
   var acoes=[];
   var concluidas=[];
-  S.cirs.forEach(function(cc){
+  var isAdmin=(S.user&&S.user.perfil==='admin');
+  var myDbId=(S.user&&S.user.db_id)||'';
+
+  // Admin vê todas; outros veem apenas atividades de suas cirurgias
+  var cirsVisiveis=S.cirs.filter(function(cc){
+    if(cc.arquivada)return false;
+    if(isAdmin){
+      // Admin pode filtrar só as suas
+      if(S.agFiltMinhas&&myDbId)return cc.responsavel_id===myDbId;
+      return true;
+    }
+    return cc.responsavel_id===myDbId;
+  });
+
+  cirsVisiveis.forEach(function(cc){
     (cc.atividades||[]).forEach(function(a){
       var h=S.devs.find(d=>d.id===cc.hospital_id);
-      var base={...a,paciente:cc.paciente,hospital:h?h.razao_social:'--',cid:cc.id};
+      var base=Object.assign({},a,{paciente:cc.paciente,hospital:h?h.razao_social:'--',cid:cc.id});
       if(a.concluido){concluidas.push(base);}
-      else if(a.data_proximo&&a.proximo_passo){acoes.push({...base,venc:a.data_proximo<hoje});}
+      else if(a.data_proximo&&a.proximo_passo){acoes.push(Object.assign({},base,{venc:a.data_proximo<hoje}));}
     });
   });
   acoes.sort((a,b)=>a.data_proximo.localeCompare(b.data_proximo));
@@ -2154,6 +2168,10 @@ function renderAgenda(){
   );
   // Event delegation para botões da agenda
   setTimeout(function(){
+    // Bind botão Minhas (admin)
+    var btnAgMin=document.getElementById('btn-ag-minhas');
+    if(btnAgMin)btnAgMin.onclick=function(){S.agFiltMinhas=!S.agFiltMinhas;renderAgenda();};
+
     var pg=document.getElementById('pg');
     if(!pg)return;
     pg.addEventListener('click',function(e){
