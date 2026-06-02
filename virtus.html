@@ -567,7 +567,7 @@ const matTot=arr=>(arr||[]).reduce((s,m)=>s+parseFloat(m.vTotal||0),0);
 
 const emptyMat=()=>({_id:uid(),ref:'',desc:'',qty:1,vUnit:'',vTotal:''});
 const emptyAtv=()=>({_id:uid(),tipo:'E-mail',data:'',horario:'',duracao:'',contato:'',telefone:'',email:'',registro:'',proximo_passo:'',data_proximo:'',anexos:[]});
-const emptyCir=()=>({paciente:'',medico:'',hospital_id:'',operadora_id:'',data_cirurgia:'',especialidade:'',procedimento:'',origem:'Opmenexo',status:'aguardando',obs:'',fonte_pagadora:'',id_cotacao_portal:'',responsavel_id:'',mat_orcado:[emptyMat()],mat_autorizado:[emptyMat()],mat_utilizado:[emptyMat()],mat_fat_autorizado:[emptyMat()],mat_faturado:[emptyMat()],resp_orcado:[],resp_autorizado:[],resp_utilizado:[],resp_fat_autorizado:[],resp_faturado:[],evidencias_pre:[],evidencias_pos:[],atividades:[]});
+const emptyCir=()=>({paciente:'',medico:'',hospital_id:'',operadora_id:'',data_cirurgia:'',especialidade:'',procedimento:'',origem:'Opmenexo',status:'aguardando',obs:'',fonte_pagadora:'',id_cotacao_portal:'',responsavel_id:'',caso_id:'',mat_orcado:[emptyMat()],mat_autorizado:[emptyMat()],mat_utilizado:[emptyMat()],mat_fat_autorizado:[emptyMat()],mat_faturado:[emptyMat()],resp_orcado:[],resp_autorizado:[],resp_utilizado:[],resp_fat_autorizado:[],resp_faturado:[],evidencias_pre:[],evidencias_pos:[],atividades:[]});
 const emptyDev=()=>({razao_social:'',cnpj:'',tipo:'Hospital',endereco:'',cidade:'',uf:'',cep:'',telefones:'',emails:'',obs:'',contatos:[]});
 const emptyCnt=()=>({_id:uid(),nome:'',departamento:'Faturamento',nivel:'Analista',telefone:'',email:''});
 
@@ -835,7 +835,7 @@ async function loadData(){
       var fm=Array.isArray(metaResp[key])?metaResp[key]:(metaResp[key]&&metaResp[key].sol?[metaResp[key]]:[]);
       return fc.length>0?fc:(fm.length>0?fm:[]);
     }
-    return Object.assign({},c,{arquivada:!!c.arquivada,
+    return Object.assign({},c,{arquivada:!!c.arquivada,caso_id:c.caso_id||'',
       mat_orcado:matOrc.filter(function(m){return !m._meta;}),
       mat_autorizado:pJ(c.mat_autorizado),
       mat_utilizado:pJ(c.mat_utilizado),
@@ -1176,6 +1176,7 @@ function renderCirs(){
       ||(op?op.razao_social:'').toLowerCase().includes(q)
       ||(x.data_cirurgia||'').includes(q)
       ||(x.origem||'').toLowerCase().includes(q)
+      ||(x.caso_id||'').toLowerCase().includes(q)
       ||(x.id_cotacao_portal||'').toLowerCase().includes(q)
       ||STATUS[x.status].toLowerCase().includes(q);
   });
@@ -1183,11 +1184,13 @@ function renderCirs(){
   var rows=filt.map(function(cc){
     var h=S.devs.find(function(d){return d.id===cc.hospital_id;});
     var op=S.devs.find(function(d){return d.id===cc.operadora_id;});
+    var resp=S.usuarios.find(function(u){return u.id===cc.responsavel_id;});
     var opts=Object.entries(STATUS).map(function(e){
       return '<option value="'+e[0]+'"'+(cc.status===e[0]?' selected':'')+'>'+e[1]+'</option>';
     }).join('');
     var idCot=esc(cc.id_cotacao_portal||'--');
     return '<tr>'
+      +'<td style="font-family:monospace;font-size:11px;font-weight:700;color:var(--tl)">'+esc(cc.caso_id||'--')+'</td>'
       +'<td style="font-weight:600">'+esc(cc.paciente||'--')+'</td>'
       +'<td>'+esc(cc.medico||'--')+'</td>'
       +'<td>'+esc(h?h.razao_social:'--')+'</td>'
@@ -1195,6 +1198,7 @@ function renderCirs(){
       +'<td style="white-space:nowrap">'+fmtD(cc.data_cirurgia)+'</td>'
       +'<td><span class="tag">'+esc(cc.origem||'')+'</span></td>'
       +'<td style="font-size:11px;font-family:monospace;color:var(--tx2)">'+idCot+'</td>'
+      +'<td>'+(resp?'<span class="badge bpr" style="font-size:10px">'+esc(resp.nome)+'</span>':'<span style="color:var(--tx3)">--</span>')+'</td>'
       +'<td style="font-weight:700;color:var(--tl)">'+fmt$(matTot(cc.mat_utilizado))+'</td>'
       +'<td><select style="border:1px solid var(--bd);background:transparent;font-size:11px;font-weight:600;cursor:pointer;border-radius:var(--r);padding:3px 5px" data-id="'+cc.id+'" class="st-sel">'+opts+'</select></td>'
       +'<td><div class="td-act">'
@@ -1246,8 +1250,8 @@ function renderCirs(){
     +(filt.length===0
       ?'<div class="empty"><h3>Nenhuma cirurgia encontrada</h3><p>Ajuste os filtros ou clique em + Nova Cirurgia.</p></div>'
       :'<div class="tbl-wrap"><table><thead><tr>'
-      +'<th>Paciente</th><th>Medico</th><th>Hospital</th><th>Operadora</th>'
-      +'<th>Data</th><th>Origem</th><th>ID Cotacao</th><th>Vl.Utilizado</th>'
+      +'<th>Caso</th><th>Paciente</th><th>Medico</th><th>Hospital</th><th>Operadora</th>'
+      +'<th>Data</th><th>Origem</th><th>ID Cotacao</th><th>Atribuida a</th><th>Vl.Utilizado</th>'
       +'<th>Status</th><th>Acoes</th>'
       +'</tr></thead><tbody>'+rows+'</tbody></table></div>')
     +'</div>'
@@ -1399,7 +1403,7 @@ function renderMCir(){
 
   var body='';
   if(CT==='geral'){
-    body='<div class="form-row fr3">'
+    body='<div style="margin-bottom:10px">'+'<span style="font-family:monospace;font-size:11px;font-weight:700;background:var(--tl3);color:var(--tl);padding:4px 12px;border-radius:6px;border:1px solid var(--tl4)">'+(CF.caso_id?'Caso: '+esc(CF.caso_id):'Novo Caso')+'</span>'+'</div>'+'<div class="form-row fr3">'
       +'<div><label>Paciente *</label><input type="text" value="'+esc(CF.paciente||'')+'" oninput="CF.paciente=this.value"/></div>'
       +'<div><label>Medico</label><input type="text" value="'+esc(CF.medico||'')+'" oninput="CF.medico=this.value"/></div>'
       +'<div><label>Data da Cirurgia</label><input type="text" class="dt-mask" value="'+fmtD(CF.data_cirurgia||'')+'" onchange="CF.data_cirurgia=toISO(this.value)" placeholder="DD/MM/AAAA" maxlength="10"/></div>'
@@ -1857,6 +1861,13 @@ async function saveCir(){
     });
     // Montar payload
     var payload=Object.assign({},CF);
+    // Gerar caso_id automático para cirurgias novas
+    if(!payload.caso_id){
+      var ano=new Date().getFullYear();
+      var seq=String(S.cirs.filter(function(x){return !x.arquivada;}).length+1).padStart(4,'0');
+      payload.caso_id='VRT-'+ano+'-'+seq;
+      CF.caso_id=payload.caso_id;
+    }
     // Salvar responsaveis na coluna dedicada (se existir no banco)
     payload.responsaveis={
       orcado:CF.resp_orcado||[],
