@@ -3581,155 +3581,250 @@ function renderPortalErro(titulo,msg){
 }
 
 function renderPortalUI(lk,cir,hosp,oper,msgs,aprovs,token){
-  var tU=matTot(cir.mat_utilizado||[]);
+  // ── Reutilizar a lógica do Dossiê interno ──────────────
+  var tO=matTot(cir.mat_orcado||[]);
   var tA=matTot(cir.mat_autorizado||[]);
+  var tU=matTot(cir.mat_utilizado||[]);
+  var tF4=matTot(cir.mat_fat_autorizado||[]);
   var tF=matTot(cir.mat_faturado||[]);
+  var tS=Math.max(0,tU-tF);
 
-  // Histórico de aprovações
-  var aprovHtml=aprovs.length===0
-    ?'<p style="font-size:12px;color:var(--tx3)">Nenhuma aprovação registrada.</p>'
+  // ── Evidências ──────────────────────────────────────────
+  function renderEvidencias(evArr,titulo){
+    if(!evArr||evArr.length===0)return '';
+    return '<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:var(--tx3);margin-bottom:8px">'+titulo+'</div>'
+      +evArr.map(function(ev){
+        var isImg=ev.tipo&&ev.tipo.startsWith('image/');
+        return '<div style="margin-bottom:8px;padding:10px;background:var(--sf2);border-radius:var(--r);border:1px solid var(--bd)">'
+          +(isImg&&ev.base64?'<img src="'+ev.base64+'" style="max-width:100%;border-radius:var(--r);margin-bottom:6px" alt="Evidencia"/>':'')
+          +'<div style="font-size:11px;color:var(--tx2)">'+esc(ev.nome||ev.url||'Arquivo')+'</div>'
+          +(ev.obs?'<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+esc(ev.obs)+'</div>':'')
+          +'</div>';
+      }).join('')
+      +'</div>';
+  }
+
+  // ── Materiais ────────────────────────────────────────────
+  function buildMatSection(items,label,total){
+    var rows=(items||[]).filter(function(m){return m.ref||m.desc;});
+    if(!rows.length)return '<p style="font-size:12px;color:var(--tx3)">Sem itens registrados.</p>';
+    return '<table style="width:100%;border-collapse:collapse;font-size:12px">'
+      +'<thead><tr style="border-bottom:2px solid var(--tl4)">'
+      +'<th style="text-align:left;padding:6px;color:var(--tl)">Ref</th>'
+      +'<th style="text-align:left;padding:6px;color:var(--tl)">Descricao</th>'
+      +'<th style="text-align:center;padding:6px;color:var(--tl)">Qtd</th>'
+      +'<th style="text-align:right;padding:6px;color:var(--tl)">Unit.</th>'
+      +'<th style="text-align:right;padding:6px;color:var(--tl)">Total</th>'
+      +'</tr></thead><tbody>'
+      +rows.map(function(m){
+        var qtd=parseFloat(m.qtd||1);
+        var unit=parseFloat(m.unit||0);
+        return '<tr style="border-bottom:1px solid var(--bd)">'
+          +'<td style="padding:6px;font-family:monospace">'+esc(m.ref||'')+'</td>'
+          +'<td style="padding:6px">'+esc(m.desc||'')+'</td>'
+          +'<td style="padding:6px;text-align:center">'+qtd+'</td>'
+          +'<td style="padding:6px;text-align:right">'+fmt$(unit)+'</td>'
+          +'<td style="padding:6px;text-align:right;font-weight:700">'+fmt$(qtd*unit)+'</td>'
+          +'</tr>';
+      }).join('')
+      +'<tfoot><tr style="border-top:2px solid var(--tl4);font-weight:800">'
+      +'<td colspan="4" style="padding:8px;text-align:right;color:var(--tl)">TOTAL '+label+'</td>'
+      +'<td style="padding:8px;text-align:right;color:var(--tl);font-size:15px">'+fmt$(total)+'</td>'
+      +'</tr></tfoot>'
+      +'</tbody></table>';
+  }
+
+  // ── Chat ─────────────────────────────────────────────────
+  var chatHtml=msgs.length===0
+    ?'<div style="text-align:center;padding:30px;color:var(--tx3);font-size:13px">Nenhuma mensagem ainda. Inicie a conversa abaixo.</div>'
+    :msgs.map(function(m){
+      var isCob=m.autor_tipo==='cobrador';
+      return '<div style="display:flex;justify-content:'+(isCob?'flex-start':'flex-end')+';margin-bottom:12px">'
+        +'<div style="max-width:75%;background:'+(isCob?'var(--sf)':'var(--tl3)')+';border-radius:12px;padding:12px 16px;border:1px solid '+(isCob?'var(--bd)':'var(--tl4)')+';box-shadow:var(--sh)">'
+        +'<div style="font-size:10px;font-weight:700;color:'+(isCob?'var(--tx3)':'var(--tl)')+';margin-bottom:5px">'+esc(m.autor_nome)+'</div>'
+        +'<div style="font-size:13px;color:var(--tx);line-height:1.5">'+esc(m.mensagem)+'</div>'
+        +'<div style="font-size:9px;color:var(--tx3);margin-top:6px;text-align:right">'+new Date(m.created_at).toLocaleString('pt-BR')+'</div>'
+        +'</div></div>';
+    }).join('');
+
+  // ── Aprovações ───────────────────────────────────────────
+  var aprovHtml=aprovs.length===0?''
     :aprovs.map(function(a){
-      var tipo={
+      var tipoLabel={
         autorizar_faturamento:'Faturamento Autorizado',
         solicitar_ajuste:'Ajuste Solicitado',
         aprovar_valores:'Valores Aprovados'
       }[a.tipo]||a.tipo;
-      return '<div style="padding:10px;background:var(--gn2);border-radius:var(--r);margin-bottom:8px;border-left:3px solid var(--gn)">'
-        +'<div style="font-size:12px;font-weight:700;color:var(--gn)">'+tipo+'</div>'
-        +'<div style="font-size:11px;color:var(--tx3)">Por: '+esc(a.aprovado_por)+' | '+new Date(a.aprovado_em).toLocaleDateString('pt-BR')+'</div>'
-        +(a.observacao?'<div style="font-size:12px;color:var(--tx2);margin-top:4px">'+esc(a.observacao)+'</div>':'')
+      var bg=a.tipo==='solicitar_ajuste'?'var(--am2)':'var(--gn2)';
+      var cor=a.tipo==='solicitar_ajuste'?'var(--am)':'var(--gn)';
+      return '<div style="padding:12px 16px;background:'+bg+';border-radius:var(--r2);margin-bottom:8px;border-left:4px solid '+cor+'">'
+        +'<div style="font-size:13px;font-weight:700;color:'+cor+'">'+tipoLabel+'</div>'
+        +'<div style="font-size:11px;color:var(--tx3);margin-top:3px">'+esc(a.aprovado_por)+' — '+new Date(a.aprovado_em).toLocaleDateString('pt-BR')+'</div>'
+        +(a.observacao?'<div style="font-size:12px;color:var(--tx2);margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08)">'+esc(a.observacao)+'</div>':'')
         +'</div>';
     }).join('');
 
-  // Chat
-  var chatHtml=msgs.length===0
-    ?'<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">Nenhuma mensagem ainda.</div>'
-    :msgs.map(function(m){
-      var isCobredor=m.autor_tipo==='cobrador';
-      return '<div style="display:flex;justify-content:'+(isCobredor?'flex-start':'flex-end')+';margin-bottom:10px">'
-        +'<div style="max-width:80%;background:'+(isCobredor?'var(--sf2)':'var(--tl3)')+';border-radius:12px;padding:10px 14px;border:1px solid var(--bd)">'
-        +'<div style="font-size:10px;font-weight:700;color:'+(isCobredor?'var(--tx3)':'var(--tl)')+';margin-bottom:4px">'+esc(m.autor_nome)+'</div>'
-        +'<div style="font-size:13px;color:var(--tx)">'+esc(m.mensagem)+'</div>'
-        +'<div style="font-size:9px;color:var(--tx3);margin-top:4px;text-align:right">'+new Date(m.created_at).toLocaleString('pt-BR')+'</div>'
-        +'</div></div>';
-    }).join('');
-
+  // ══════════════════════════════════════════════════════════
+  // MONTAR HTML COMPLETO
+  // ══════════════════════════════════════════════════════════
   document.getElementById('app').innerHTML=
     '<div style="min-height:100vh;background:var(--bg)">'
-    // Header
-    +'<div style="background:var(--sf);border-bottom:1.5px solid var(--bd);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;box-shadow:var(--sh)">'
+
+    // ── Header ──────────────────────────────────────────────
+    +'<div style="background:var(--sf);border-bottom:1.5px solid var(--bd);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;box-shadow:var(--sh)">'
     +'<div style="font-family:Poppins,sans-serif;font-size:20px;font-weight:800;color:var(--tl)">Virtus</div>'
-    +'<div style="text-align:right">'
-    +'<div style="font-size:11px;color:var(--tx3)">Acesso como</div>'
-    +'<div style="font-size:13px;font-weight:700;color:var(--tx)">'+esc(lk.destinatario_nome)+'</div>'
+    +'<div style="display:flex;align-items:center;gap:16px">'
+    +'<span style="font-size:12px;color:var(--tx3)">Acesso como <strong style="color:var(--tx)">'+esc(lk.destinatario_nome)+'</strong></span>'
+    +'<button onclick="window.print()" class="btn btn-s btn-sm no-print">Imprimir</button>'
     +'</div>'
-    +'</div>'
-    // Conteúdo
-    +'<div style="max-width:900px;margin:0 auto;padding:24px 16px">'
-
-    // Badge do caso
-    +'<div style="margin-bottom:18px">'
-    +'<span style="font-family:monospace;font-size:13px;font-weight:700;background:var(--tl3);color:var(--tl);padding:5px 14px;border-radius:6px;border:1px solid var(--tl4)">'+esc(cir.caso_id||'')+'</span>'
-    +'<span style="font-size:11px;color:var(--tx3);margin-left:10px">Expira em: '+new Date(lk.expira_em).toLocaleDateString('pt-BR')+'</span>'
     +'</div>'
 
-    // Identificação
+    // ── Conteúdo principal ──────────────────────────────────
+    +'<div style="max-width:960px;margin:0 auto;padding:28px 20px">'
+
+    // Badge do caso + validade
+    +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">'
+    +'<span style="font-family:monospace;font-size:14px;font-weight:800;background:var(--tl3);color:var(--tl);padding:6px 16px;border-radius:8px;border:1.5px solid var(--tl4)">'+esc(cir.caso_id||'')+'</span>'
+    +'<span style="font-size:11px;color:var(--tx3)">Link valido ate: <strong>'+new Date(lk.expira_em).toLocaleDateString('pt-BR')+'</strong></span>'
+    +'<span style="font-size:11px;color:var(--tx3)">Acessos: <strong>'+((lk.acessos||0))+'</strong></span>'
+    +'</div>'
+
+    // ── BLOCO 1: Identificacao ───────────────────────────────
     +'<div class="card" style="margin-bottom:16px">'
-    +'<div class="c-hd">Identificação do Caso</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">'
-    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Paciente</div><div style="font-size:13px;font-weight:700">'+esc(cir.paciente||'--')+'</div></div>'
-    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Médico</div><div style="font-size:13px">'+esc(cir.medico||'--')+'</div></div>'
-    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Data</div><div style="font-size:13px">'+fmtD(cir.data_cirurgia)+'</div></div>'
-    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Hospital</div><div style="font-size:13px">'+esc(hosp?hosp.razao_social:'--')+'</div></div>'
-    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Operadora</div><div style="font-size:13px">'+esc(oper?oper.razao_social:'--')+'</div></div>'
-    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Procedimento</div><div style="font-size:13px">'+esc(cir.procedimento||'--')+'</div></div>'
+    +'<div class="c-hd">Identificacao do Processo</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;font-size:13px">'
+    +'<div><span style="color:var(--tx3)">Paciente:</span> <strong>'+esc(cir.paciente||'--')+'</strong></div>'
+    +'<div><span style="color:var(--tx3)">Medico:</span> <strong>'+esc(cir.medico||'--')+'</strong></div>'
+    +'<div><span style="color:var(--tx3)">Data:</span> <strong>'+fmtD(cir.data_cirurgia)+'</strong></div>'
+    +'<div><span style="color:var(--tx3)">Especialidade:</span> <strong>'+esc(cir.especialidade||'--')+'</strong></div>'
+    +'<div><span style="color:var(--tx3)">Hospital:</span> <strong>'+esc(hosp?hosp.razao_social:'--')+'</strong></div>'
+    +'<div><span style="color:var(--tx3)">Operadora:</span> <strong>'+esc(oper?oper.razao_social:'--')+'</strong></div>'
+    +'<div><span style="color:var(--tx3)">Procedimento:</span> <strong>'+esc(cir.procedimento||'--')+'</strong></div>'
+    +'<div><span style="color:var(--tx3)">Fonte Pagadora:</span> <strong>'+esc(cir.fonte_pagadora||'--')+'</strong></div>'
+    +'<div><span style="color:var(--tx3)">Portal:</span> <strong>'+esc(cir.origem||'--')+'</strong></div>'
+    +'<div><span style="color:var(--tx3)">ID Cotacao Portal:</span> <strong style="font-family:monospace">'+esc(cir.id_cotacao_portal||'--')+'</strong></div>'
+    +'<div style="grid-column:1/-1"><span style="color:var(--tx3)">Status:</span> <span style="background:var(--am2);color:var(--am);padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700">'+esc(STATUS[cir.status]||cir.status)+'</span></div>'
     +'</div>'
     +'</div>'
 
-    // Valores
+    // ── BLOCO 2: Resumo de valores ───────────────────────────
     +'<div class="card" style="margin-bottom:16px">'
-    +'<div class="c-hd">Valores</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">'
-    +'<div style="text-align:center;background:var(--sf2);border-radius:var(--r2);padding:14px;border:1px solid var(--bd)">'
-    +'<div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:6px">Autorizado</div>'
-    +'<div style="font-size:20px;font-weight:800;color:var(--tl)">'+fmt$(tA)+'</div></div>'
-    +'<div style="text-align:center;background:var(--sf2);border-radius:var(--r2);padding:14px;border:1px solid var(--bd)">'
-    +'<div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:6px">Utilizado</div>'
-    +'<div style="font-size:20px;font-weight:800;color:var(--tx)">'+fmt$(tU)+'</div></div>'
-    +'<div style="text-align:center;background:var(--sf2);border-radius:var(--r2);padding:14px;border:1px solid var(--bd)">'
-    +'<div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:6px">Faturado</div>'
-    +'<div style="font-size:20px;font-weight:800;color:var(--gn)">'+fmt$(tF)+'</div></div>'
+    +'<div class="c-hd">Resumo de Valores</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'
+    +[
+      {l:'F1 Orcado',v:tO,c:'var(--bl)',bg:'var(--bl2)'},
+      {l:'F2 Autorizado',v:tA,c:'var(--pu)',bg:'var(--pu2)'},
+      {l:'F3 Utilizado',v:tU,c:'var(--tx)',bg:'var(--sf2)'},
+      {l:'F4 Fat.Autorizado',v:tF4,c:'var(--am)',bg:'var(--am2)'},
+      {l:'F5 Faturado',v:tF,c:'var(--gn)',bg:'var(--gn2)'},
+      {l:'F6 Saldo',v:tS,c:tS>0?'var(--rd)':'var(--gn)',bg:tS>0?'var(--rd2)':'var(--gn2)'}
+    ].map(function(f){
+      return '<div style="text-align:center;background:'+f.bg+';border-radius:var(--r2);padding:14px;border:1px solid var(--bd)">'
+        +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--tx3);margin-bottom:6px">'+f.l+'</div>'
+        +'<div style="font-size:18px;font-weight:800;color:'+f.c+'">'+fmt$(f.v)+'</div>'
+        +'</div>';
+    }).join('')
     +'</div>'
     +'</div>'
 
-    // Ações (se tiver permissão)
-    +(lk.perm_aprovar?
-      '<div class="card" style="margin-bottom:16px">'
-      +'<div class="c-hd">Ações</div>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
-      +'<button class="btn btn-p" id="btn-portal-autorizar">✅ Autorizar Faturamento</button>'
-      +'<button class="btn btn-s" id="btn-portal-ajuste">⚠️ Solicitar Ajuste</button>'
-      +'</div>'
-      +'<div id="portal-aprov-form" style="display:none;margin-top:14px">'
-      +'<div style="margin-bottom:8px"><label>Observação</label>'
-      +'<textarea id="portal-obs" rows="3" placeholder="Descreva sua observação..."></textarea></div>'
-      +'<div style="display:flex;gap:8px">'
-      +'<button class="btn btn-p" id="btn-portal-confirmar">Confirmar</button>'
-      +'<button class="btn btn-s" id="btn-portal-cancelar-aprov">Cancelar</button>'
-      +'</div></div>'
-      +'<div style="margin-top:12px"><div class="c-hd" style="font-size:10px">Histórico de Aprovações</div>'+aprovHtml+'</div>'
-      +'</div>'
-    :'')
+    // ── BLOCO 3: Materiais por fase ──────────────────────────
+    +(tO>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F1 — Materiais Orcados</div>'+buildMatSection(cir.mat_orcado,'F1',tO)+'</div>':'')
+    +(tA>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F2 — Materiais Autorizados</div>'+buildMatSection(cir.mat_autorizado,'F2',tA)+'</div>':'')
+    +(tU>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F3 — Materiais Utilizados</div>'+buildMatSection(cir.mat_utilizado,'F3',tU)+'</div>':'')
+    +(tF4>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F4 — Faturamento Autorizado</div>'+buildMatSection(cir.mat_fat_autorizado,'F4',tF4)+'</div>':'')
+    +(tF>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F5 — Materiais Faturados</div>'+buildMatSection(cir.mat_faturado,'F5',tF)+'</div>':'')
 
-    // Chat
-    +(lk.perm_mensagem?
-      '<div class="card" style="margin-bottom:16px">'
-      +'<div class="c-hd">Mensagens do Caso</div>'
-      +'<div id="portal-chat" style="max-height:320px;overflow-y:auto;padding:8px;background:var(--sf2);border-radius:var(--r);border:1px solid var(--bd);margin-bottom:12px">'+chatHtml+'</div>'
-      +'<div style="display:flex;gap:8px">'
-      +'<textarea id="portal-msg" rows="2" placeholder="Digite sua mensagem..." style="flex:1;resize:none"></textarea>'
-      +'<button class="btn btn-p" id="btn-portal-msg" style="align-self:flex-end">Enviar</button>'
-      +'</div>'
-      +'</div>'
-    :'')
+    // ── BLOCO 4: Evidências ──────────────────────────────────
+    +((cir.evidencias_pre&&cir.evidencias_pre.length)||(cir.evidencias_pos&&cir.evidencias_pos.length)
+      ?'<div class="card" style="margin-bottom:16px">'
+        +'<div class="c-hd">Evidencias</div>'
+        +renderEvidencias(cir.evidencias_pre,'Pre-Cirurgia')
+        +renderEvidencias(cir.evidencias_pos,'Pos-Cirurgia')
+        +'</div>'
+      :'')
 
-    +'<div style="text-align:center;font-size:10px;color:var(--tx3);margin-top:24px">Virtus — Gestão de Faturamento Médico</div>'
+    // ── BLOCO 5: Aprovações existentes ──────────────────────
+    +(aprovs.length?'<div class="card" style="margin-bottom:16px"><div class="c-hd">Historico de Acoes</div>'+aprovHtml+'</div>':'')
+
+    // ── BLOCO 6: Ações do devedor ────────────────────────────
+    +(lk.perm_aprovar
+      ?'<div class="card" style="margin-bottom:16px" id="portal-acoes">'
+        +'<div class="c-hd">Suas Acoes</div>'
+        +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'
+        +'<button class="btn btn-p" id="btn-portal-autorizar">&#10003; Autorizar Faturamento</button>'
+        +'<button class="btn btn-s" id="btn-portal-ajuste">&#9888; Solicitar Ajuste</button>'
+        +'<button class="btn btn-s" id="btn-portal-esclarec">&#63; Pedir Esclarecimento</button>'
+        +'</div>'
+        +'<div id="portal-aprov-form" style="display:none">'
+        +'<div style="margin-bottom:8px"><label id="portal-aprov-label" style="font-weight:600;font-size:13px;color:var(--tx)">Observacao</label>'
+        +'<textarea id="portal-obs" rows="3" placeholder="Descreva sua observacao ou justificativa..."></textarea></div>'
+        +'<div style="display:flex;gap:8px">'
+        +'<button class="btn btn-p" id="btn-portal-confirmar">Confirmar</button>'
+        +'<button class="btn btn-s" id="btn-portal-cancelar-aprov">Cancelar</button>'
+        +'</div></div>'
+        +'</div>'
+      :'')
+
+    // ── BLOCO 7: Chat ────────────────────────────────────────
+    +(lk.perm_mensagem
+      ?'<div class="card" style="margin-bottom:16px">'
+        +'<div class="c-hd">Mensagens do Caso</div>'
+        +'<div id="portal-chat" style="max-height:400px;overflow-y:auto;padding:12px;background:var(--sf2);border-radius:var(--r);border:1px solid var(--bd);margin-bottom:14px">'+chatHtml+'</div>'
+        +'<div style="display:flex;gap:10px;align-items:flex-end">'
+        +'<textarea id="portal-msg" rows="2" placeholder="Digite sua mensagem..." style="flex:1;resize:none"></textarea>'
+        +'<button class="btn btn-p" id="btn-portal-msg">Enviar</button>'
+        +'</div>'
+        +'</div>'
+      :'')
+
+    +'<div style="text-align:center;font-size:11px;color:var(--tx3);margin-top:24px;padding-bottom:40px">'
+    +'Virtus — Sistema de Gestao de Faturamento Medico | Acesso seguro e temporario'
+    +'</div>'
     +'</div></div>';
 
-  // Binds
+  // ── Binds ────────────────────────────────────────────────
   setTimeout(function(){
-    // Autorizar faturamento
+    var tipoAtivo='';
+
+    function mostrarForm(tipo,label){
+      tipoAtivo=tipo;
+      var lbl=document.getElementById('portal-aprov-label');
+      if(lbl)lbl.textContent=label;
+      var form=document.getElementById('portal-aprov-form');
+      if(form)form.style.display='block';
+      var obs=document.getElementById('portal-obs');
+      if(obs){obs.value='';obs.focus();}
+    }
+
     var btnAut=document.getElementById('btn-portal-autorizar');
-    if(btnAut)btnAut.onclick=function(){
-      btnAut.setAttribute('data-tipo','autorizar_faturamento');
-      document.getElementById('portal-aprov-form').style.display='block';
-    };
+    if(btnAut)btnAut.onclick=function(){mostrarForm('autorizar_faturamento','Confirmar autorizacao de faturamento — Observacao (opcional):');};
+
     var btnAjt=document.getElementById('btn-portal-ajuste');
-    if(btnAjt)btnAjt.onclick=function(){
-      btnAjt.setAttribute('data-tipo','solicitar_ajuste');
-      document.getElementById('portal-aprov-form').style.display='block';
-    };
+    if(btnAjt)btnAjt.onclick=function(){mostrarForm('solicitar_ajuste','Descreva o ajuste necessario:');};
+
+    var btnEsc=document.getElementById('btn-portal-esclarec');
+    if(btnEsc)btnEsc.onclick=function(){mostrarForm('solicitar_ajuste','Qual esclarecimento voce precisa?');};
+
     var btnConf=document.getElementById('btn-portal-confirmar');
     if(btnConf)btnConf.onclick=function(){
-      var tipo=(btnAut&&btnAut.getAttribute('data-tipo'))||
-               (btnAjt&&btnAjt.getAttribute('data-tipo'))||'autorizar_faturamento';
       var obs=(document.getElementById('portal-obs')||{}).value||'';
-      registrarAprovacao(lk,cir,token,tipo,obs);
-    };
-    var btnCanc=document.getElementById('btn-portal-cancelar-aprov');
-    if(btnCanc)btnCanc.onclick=function(){
-      document.getElementById('portal-aprov-form').style.display='none';
+      registrarAprovacao(lk,cir,token,tipoAtivo,obs);
     };
 
-    // Enviar mensagem
+    var btnCanc=document.getElementById('btn-portal-cancelar-aprov');
+    if(btnCanc)btnCanc.onclick=function(){
+      var form=document.getElementById('portal-aprov-form');
+      if(form)form.style.display='none';
+    };
+
     var btnMsg=document.getElementById('btn-portal-msg');
     if(btnMsg)btnMsg.onclick=function(){enviarMsgPortal(lk,cir,token,msgs,aprovs);};
+
     var msgEl=document.getElementById('portal-msg');
     if(msgEl)msgEl.onkeydown=function(e){
       if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviarMsgPortal(lk,cir,token,msgs,aprovs);}
     };
 
-    // Scroll chat para o final
     var chat=document.getElementById('portal-chat');
     if(chat)chat.scrollTop=chat.scrollHeight;
   },50);
