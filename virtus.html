@@ -1156,6 +1156,172 @@ function renderDash(){
 
 
 /* ── CIRURGIAS ───────────────────────────────────────────── */
+// ══════════════════════════════════════════════════════════
+// MÓDULO: COMPARTILHAMENTO DE CASO (Fase 3)
+// ══════════════════════════════════════════════════════════
+
+function renderAbaCompartilhar(){
+  // Links já gerados para este caso
+  var links=(CF._links||[]);
+  var agora=new Date();
+
+  var linksHtml=links.length===0
+    ?'<div class="empty" style="padding:30px"><p>Nenhum link gerado ainda.</p></div>'
+    :links.map(function(lk){
+      var exp=new Date(lk.expira_em);
+      var expirado=exp<agora;
+      var perms=[];
+      if(lk.perm_aprovar)perms.push('Aprovar');
+      if(lk.perm_anexar)perms.push('Anexar');
+      if(lk.perm_mensagem)perms.push('Mensagem');
+      var url=window.location.origin+window.location.pathname+'?caso='+lk.token;
+      return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:var(--r2);padding:14px;margin-bottom:10px">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
+        +'<div>'
+        +'<div style="font-size:13px;font-weight:700;color:var(--tx)">'+esc(lk.destinatario_nome)+'</div>'
+        +'<div style="font-size:11px;color:var(--tx3)">'+esc(lk.destinatario_email)+'</div>'
+        +'</div>'
+        +'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:'+(expirado?'var(--rd2)':'var(--gn2)')+';color:'+(expirado?'var(--rd)':'var(--gn)')+';">'+(expirado?'Expirado':'Ativo')+'</span>'
+        +'</div>'
+        +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'
+        +(perms.length?perms.map(function(p){return '<span class="tag">'+p+'</span>';}).join(''):'<span class="tag">Somente leitura</span>')
+        +'</div>'
+        +'<div style="display:flex;gap:6px;align-items:center">'
+        +'<input type="text" value="'+url+'" readonly style="flex:1;font-size:10px;font-family:monospace;background:var(--sf);color:var(--tx2)" onclick="this.select()"/>'
+        +'<button class="btn btn-xs btn-s lk-copy-btn" data-url="'+url+'">Copiar</button>'
+        +(lk.ativo&&!expirado?'<button class="btn btn-xs btn-d lk-revogar-btn" data-id="'+lk.id+'">Revogar</button>':'')
+        +'</div>'
+        +'<div style="font-size:10px;color:var(--tx3);margin-top:6px">'
+        +'Expira: '+new Date(lk.expira_em).toLocaleDateString('pt-BR')+' | '
+        +'Acessos: '+(lk.acessos||0)
+        +'</div>'
+        +'</div>';
+    }).join('');
+
+  return '<div class="c-hd">Compartilhar Caso '+esc(CF.caso_id||'')+'</div>'
+    // Formulário novo link
+    +'<div class="card" style="margin-bottom:16px">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--tx2);margin-bottom:12px">Gerar novo link de acesso</div>'
+    +'<div class="form-row fr2" style="margin-bottom:10px">'
+    +'<div><label>Nome do destinatário *</label><input type="text" id="lk-nome" placeholder="Ex: Dra. Ana Lima / Hospital Nove de Julho"/></div>'
+    +'<div><label>E-mail *</label><input type="email" id="lk-email" placeholder="contato@hospital.com.br"/></div>'
+    +'</div>'
+    +'<div class="form-row fr3" style="margin-bottom:10px">'
+    +'<div><label>Tipo</label><select id="lk-tipo">'
+    +'<option value="hospital">Hospital</option>'
+    +'<option value="operadora">Operadora</option>'
+    +'<option value="outro">Outro</option>'
+    +'</select></div>'
+    +'<div><label>Validade</label><select id="lk-dias">'
+    +'<option value="3">3 dias</option>'
+    +'<option value="7" selected>7 dias</option>'
+    +'<option value="15">15 dias</option>'
+    +'<option value="30">30 dias</option>'
+    +'</select></div>'
+    +'<div><label>Permissões</label>'
+    +'<div style="display:flex;flex-direction:column;gap:4px;margin-top:2px">'
+    +'<label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:12px"><input type="checkbox" id="lk-p-aprovar"/> Aprovar faturamento</label>'
+    +'<label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:12px"><input type="checkbox" id="lk-p-anexar"/> Anexar documentos</label>'
+    +'<label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:12px"><input type="checkbox" id="lk-p-msg" checked/> Enviar mensagens</label>'
+    +'</div></div>'
+    +'</div>'
+    +'<button class="btn btn-p" id="btn-gerar-link">&#128279; Gerar e Copiar Link</button>'
+    +'</div>'
+    // Links existentes
+    +'<div class="c-hd" style="margin-top:8px">Links gerados ('+links.length+')</div>'
+    +linksHtml;
+}
+
+// ── Carregar links do caso ──────────────────────────────────
+async function carregarLinksCaso(){
+  if(!CF.id)return;
+  var r=await DB.sel('caso_links',{
+    select:'*',
+    eq:{cirurgia_id:CF.id},
+    order:'created_at.desc'
+  });
+  CF._links=(r.data||[]);
+}
+
+// ── Gerar novo link ─────────────────────────────────────────
+async function gerarLink(){
+  var nome=(document.getElementById('lk-nome')||{}).value||'';
+  var email=(document.getElementById('lk-email')||{}).value||'';
+  var tipo=(document.getElementById('lk-tipo')||{}).value||'hospital';
+  var dias=parseInt((document.getElementById('lk-dias')||{}).value||'7');
+  var pAprovar=!!(document.getElementById('lk-p-aprovar')||{}).checked;
+  var pAnexar=!!(document.getElementById('lk-p-anexar')||{}).checked;
+  var pMsg=document.getElementById('lk-p-msg');
+  var permMsg=pMsg?pMsg.checked:true;
+
+  if(!nome.trim()||!email.trim()){
+    showAlert('Preencha nome e e-mail do destinatário.','warn');return;
+  }
+  if(!CF.id){
+    showAlert('Grave a cirurgia primeiro antes de compartilhar.','warn');return;
+  }
+
+  var btn=document.getElementById('btn-gerar-link');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Gerando...';}
+
+  var expira=new Date();
+  expira.setDate(expira.getDate()+dias);
+
+  var r=await DB.ins('caso_links',{
+    caso_id:CF.caso_id,
+    cirurgia_id:CF.id,
+    destinatario_nome:nome.trim(),
+    destinatario_email:email.trim(),
+    destinatario_tipo:tipo,
+    perm_visualizar:true,
+    perm_aprovar:pAprovar,
+    perm_anexar:pAnexar,
+    perm_mensagem:permMsg,
+    expira_em:expira.toISOString(),
+    criado_por:(S.user&&S.user.id)||null,
+    criado_por_nome:(S.user&&S.user.nome)||''
+  });
+
+  if(r.error){
+    showAlert('Erro ao gerar link: '+r.error.message,'danger');
+    if(btn){btn.disabled=false;btn.innerHTML='&#128279; Gerar e Copiar Link';}
+    return;
+  }
+
+  // Copiar link para clipboard
+  var token=r.data&&r.data[0]&&r.data[0].token;
+  if(token){
+    var url=window.location.origin+window.location.pathname+'?caso='+token;
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(url).then(function(){
+        showAlert('Link copiado para a área de transferência!','success');
+      });
+    } else {
+      showAlert('Link gerado! Copie manualmente: '+url,'success');
+    }
+  }
+
+  // Recarregar links e re-renderizar aba
+  await carregarLinksCaso();
+  CT='compartilhar';
+  renderMCir();
+}
+
+// ── Revogar link ────────────────────────────────────────────
+async function revogarLink(id){
+  if(!confirm('Revogar este link? O destinatário não conseguirá mais acessar.'))return;
+  var r=await DB.upd('caso_links',{id:id,ativo:false},{id:id});
+  if(r.error){showAlert('Erro: '+r.error.message,'danger');return;}
+  await carregarLinksCaso();
+  CT='compartilhar';
+  renderMCir();
+  showAlert('Link revogado!','success');
+}
+
+// ══════════════════════════════════════════════════════════
+// FIM MÓDULO COMPARTILHAMENTO
+// ══════════════════════════════════════════════════════════
+
 function renderCirs(){
   // Filtros ativos
   var q=(S.searchCir||'').toLowerCase().trim();
@@ -1373,7 +1539,11 @@ function importarEtapaAnterior(destKey){
 
 // Manter compatibilidade com chamadas antigas
 function copiarDeOrcado(destKey){importarEtapaAnterior(destKey);}
-function openMCirById(id){openMCir(S.cirs.find(c=>c.id===id));}
+function openMCirById(id){
+  openMCir(S.cirs.find(function(x){return x.id===id;}));
+  // Carregar links em background após abrir modal
+  setTimeout(function(){carregarLinksCaso();},200);
+}
 
 function mudarTab(t){
   // Usuário usa "Importar Itens da Etapa Anterior" manualmente — sem auto-cópia
@@ -1381,8 +1551,8 @@ function mudarTab(t){
 }
 
 function renderMCir(){
-  const tabs=['geral','orcado','autorizado','utilizado','fat_autorizado','faturado','saldo','evidencias','atividades'];
-  const tabLabels={geral:'Geral',orcado:'F1 Orcado',autorizado:'F2 Autorizado',utilizado:'F3 Utilizado',fat_autorizado:'F4 Fat.Autorizado',faturado:'F5 Faturado',saldo:'F6 Saldo',evidencias:'Evidencias',atividades:'Atividades ('+(CF.atividades||[]).length+')'};
+  const tabs=['geral','orcado','autorizado','utilizado','fat_autorizado','faturado','saldo','evidencias','atividades','compartilhar'];
+  const tabLabels={geral:'Geral',orcado:'F1 Orcado',autorizado:'F2 Autorizado',utilizado:'F3 Utilizado',fat_autorizado:'F4 Fat.Autorizado',faturado:'F5 Faturado',saldo:'F6 Saldo',evidencias:'Evidencias',atividades:'Atividades ('+(CF.atividades||[]).length+')',compartilhar:'&#128279; Compartilhar'};
   const tabsH=(function(){
     var html='';
     for(var i=0;i<tabs.length;i++){
@@ -1440,6 +1610,9 @@ function renderMCir(){
     body=buildSaldo();
   } else if(CT==='evidencias'){
     body=buildEvid();
+  } else if(CT==='compartilhar'){
+    body=renderAbaCompartilhar();
+
   } else if(CT==='atividades'){
     body=buildAtvs();
   }
@@ -1482,6 +1655,36 @@ function renderMCir(){
           if(rk)addSolicitante(rk);
         };
       })(solBtns[j]);
+    }
+
+    // Aba Compartilhar
+    var btnGerarLk=document.getElementById('btn-gerar-link');
+    if(btnGerarLk)btnGerarLk.onclick=gerarLink;
+
+    // Copiar link
+    var copyBtns=modalEl.querySelectorAll('button.lk-copy-btn');
+    for(var k=0;k<copyBtns.length;k++){
+      (function(btn){
+        btn.onclick=function(){
+          var url=btn.getAttribute('data-url');
+          if(navigator.clipboard){
+            navigator.clipboard.writeText(url).then(function(){
+              showAlert('Link copiado!','success');
+            });
+          }
+        };
+      })(copyBtns[k]);
+    }
+
+    // Revogar link
+    var revBtns=modalEl.querySelectorAll('button.lk-revogar-btn');
+    for(var l=0;l<revBtns.length;l++){
+      (function(btn){
+        btn.onclick=function(){
+          var id=btn.getAttribute('data-id');
+          if(id)revogarLink(id);
+        };
+      })(revBtns[l]);
     }
   },50);
 }
