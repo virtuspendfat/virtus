@@ -766,7 +766,8 @@ async function doLogin(){
   // Buscar perfil do usuário na tabela usuarios
   const perfil=await carregarPerfil(r.user.id,email);
   S.user={
-    id:r.user.id,
+    id:r.user.id,          // Supabase Auth UID
+    db_id:perfil?perfil.id:'', // ID na tabela usuarios
     email:email,
     nome:perfil?perfil.nome:email.split('@')[0],
     perfil:perfil?perfil.perfil:'admin'
@@ -1162,7 +1163,7 @@ function renderCirs(){
     if(x.arquivada)return false;
     if(S.stCir!=='todos'&&x.status!==S.stCir)return false;
     // Filtro 'Minhas Cirurgias'
-    if(S.filtMinhas&&S.user&&x.responsavel_id!==S.user.id)return false;
+    if(S.filtMinhas&&S.user&&x.responsavel_id!==(S.user.db_id||S.user.id))return false;
     if(S.filtHosp&&x.hospital_id!==S.filtHosp)return false;
     if(S.filtOper&&x.operadora_id!==S.filtOper)return false;
     if(S.filtOrigem&&x.origem!==S.filtOrigem)return false;
@@ -3270,6 +3271,7 @@ function dlHtml(){
         var perfil=await carregarPerfil(authUser.id,authUser.email);
         S.user={
           id:authUser.id,
+          db_id:perfil?perfil.id:'',
           email:authUser.email,
           nome:perfil?perfil.nome:authUser.email.split('@')[0],
           perfil:perfil?perfil.perfil:'operador'
@@ -3303,6 +3305,7 @@ function dlHtml(){
       if(perfil){
         S.user.nome=perfil.nome;
         S.user.perfil=perfil.perfil;
+        S.user.db_id=perfil.id;
         localStorage.setItem('vt_user',JSON.stringify(S.user));
       }
       await loadData();renderApp();return;
