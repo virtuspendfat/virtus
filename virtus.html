@@ -1188,7 +1188,7 @@ function renderAbaCompartilhar(){
         +'</div>'
         +'<div style="display:flex;gap:6px;align-items:center">'
         +'<input type="text" value="'+url+'" readonly style="flex:1;font-size:10px;font-family:monospace;background:var(--sf);color:var(--tx2)" onclick="this.select()"/>'
-        +'<button class="btn btn-xs btn-s lk-copy-btn" data-url="'+url+'">Copiar</button>'
+        +'<button class="btn btn-xs btn-s lk-copy-btn" data-url="'+url+'">Copiar</button>'+'<button class="btn btn-xs btn-p lk-email-btn" data-url="'+url+'" data-email="'+esc(lk.destinatario_email)+'" data-nome="'+esc(lk.destinatario_nome)+'">&#9993; E-mail</button>'
         +(lk.ativo&&!expirado?'<button class="btn btn-xs btn-d lk-revogar-btn" data-id="'+lk.id+'">Revogar</button>':'')
         +'</div>'
         +'<div style="font-size:10px;color:var(--tx3);margin-top:6px">'
@@ -1308,6 +1308,24 @@ async function gerarLink(){
 }
 
 // ── Revogar link ────────────────────────────────────────────
+async function enviarLinkPorEmail(url,email,nome){
+  if(!confirm('Enviar link de acesso para '+email+'?'))return;
+  try{
+    var assunto=encodeURIComponent('Acesso ao Caso '+CF.caso_id+' - Virtus');
+    var linha1='Ola '+nome+',';
+    var linha2='Voce recebeu acesso ao caso '+CF.caso_id+' no sistema Virtus.';
+    var linha3='Clique no link abaixo para visualizar:';
+    var linha4=url;
+    var linha5='Este link e valido por tempo limitado.';
+    var linha6='Atenciosamente, '+((S.user&&S.user.nome)||'Equipe Virtus');
+    var corpo=encodeURIComponent([linha1,'',linha2,'',linha3,linha4,'',linha5,'',linha6].join('\n'));
+    window.open('mailto:'+email+'?subject='+assunto+'&body='+corpo,'_blank');
+    showAlert('Cliente de e-mail aberto com o link pronto para enviar!','success');
+  }catch(e){
+    showAlert('Erro: '+e.message,'danger');
+  }
+}
+
 async function revogarLink(id){
   if(!confirm('Revogar este link? O destinatário não conseguirá mais acessar.'))return;
   var r=await DB.upd('caso_links',{id:id,ativo:false},{id:id});
@@ -1674,6 +1692,19 @@ function renderMCir(){
           }
         };
       })(copyBtns[k]);
+    }
+
+    // Enviar link por e-mail
+    var emailBtns=modalEl.querySelectorAll('button.lk-email-btn');
+    for(var m=0;m<emailBtns.length;m++){
+      (function(btn){
+        btn.onclick=function(){
+          var url=btn.getAttribute('data-url');
+          var email=btn.getAttribute('data-email');
+          var nome=btn.getAttribute('data-nome');
+          enviarLinkPorEmail(url,email,nome);
+        };
+      })(emailBtns[m]);
     }
 
     // Revogar link
@@ -3461,10 +3492,308 @@ function dlHtml(){
   URL.revokeObjectURL(url);
 }
 
+// ══════════════════════════════════════════════════════════
+// PORTAL DO DEVEDOR — Acesso via link temporário
+// ══════════════════════════════════════════════════════════
+
+async function renderPortalDevedor(token){
+  // Mostrar loading
+  document.getElementById('app').innerHTML=
+    '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)">'
+    +'<div style="text-align:center;color:var(--tx3)">'
+    +'<div style="font-family:Poppins,sans-serif;font-size:24px;font-weight:800;color:var(--tl);margin-bottom:8px">Virtus</div>'
+    +'<div style="font-size:13px">Carregando...</div>'
+    +'</div></div>';
+
+  // Buscar link pelo token (anon — sem autenticação)
+  var r=await DB.sel('caso_links',{
+    select:'*',
+    eq:{token:token,ativo:true},
+    limit:1
+  });
+
+  if(!r.data||r.data.length===0){
+    renderPortalErro('Link inválido ou expirado.',
+      'Este link não existe ou foi revogado. Entre em contato com o cobrador.');
+    return;
+  }
+
+  var lk=r.data[0];
+
+  // Verificar expiração
+  if(new Date(lk.expira_em)<new Date()){
+    renderPortalErro('Link expirado.',
+      'Este link expirou em '+new Date(lk.expira_em).toLocaleDateString('pt-BR')+
+      '. Solicite um novo link ao cobrador.');
+    return;
+  }
+
+  // Registrar acesso
+  await DB.upd('caso_links',{
+    id:lk.id,
+    acessos:(lk.acessos||0)+1,
+    ultimo_acesso:new Date().toISOString()
+  },{id:lk.id});
+
+  // Buscar dados da cirurgia
+  var rc=await DB.sel('cirurgias',{select:'*',eq:{id:lk.cirurgia_id},limit:1});
+  if(!rc.data||rc.data.length===0){
+    renderPortalErro('Caso não encontrado.','O caso associado a este link não foi encontrado.');
+    return;
+  }
+  var cir=rc.data[0];
+
+  // Buscar hospital e operadora
+  var devs=await DB.sel('devedores',{select:'*'});
+  var devsArr=devs.data||[];
+  var hosp=devsArr.find(function(d){return d.id===cir.hospital_id;});
+  var oper=devsArr.find(function(d){return d.id===cir.operadora_id;});
+
+  // Buscar mensagens do caso
+  var rm=await DB.sel('caso_mensagens',{
+    select:'*',
+    eq:{cirurgia_id:lk.cirurgia_id},
+    order:'created_at.asc'
+  });
+  var msgs=rm.data||[];
+
+  // Buscar aprovações existentes
+  var ra=await DB.sel('caso_aprovacoes',{
+    select:'*',
+    eq:{cirurgia_id:lk.cirurgia_id},
+    order:'aprovado_em.desc'
+  });
+  var aprovs=ra.data||[];
+
+  // Renderizar portal
+  renderPortalUI(lk,cir,hosp,oper,msgs,aprovs,token);
+}
+
+function renderPortalErro(titulo,msg){
+  document.getElementById('app').innerHTML=
+    '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)">'
+    +'<div style="background:#fff;border-radius:16px;padding:40px;max-width:440px;text-align:center;box-shadow:var(--sh2)">'
+    +'<div style="font-size:40px;margin-bottom:16px">⚠️</div>'
+    +'<div style="font-family:Poppins,sans-serif;font-size:22px;font-weight:800;color:var(--tl);margin-bottom:8px">Virtus</div>'
+    +'<div style="font-size:15px;font-weight:700;color:var(--tx);margin-bottom:8px">'+esc(titulo)+'</div>'
+    +'<div style="font-size:13px;color:var(--tx3)">'+esc(msg)+'</div>'
+    +'</div></div>';
+}
+
+function renderPortalUI(lk,cir,hosp,oper,msgs,aprovs,token){
+  var tU=matTot(cir.mat_utilizado||[]);
+  var tA=matTot(cir.mat_autorizado||[]);
+  var tF=matTot(cir.mat_faturado||[]);
+
+  // Histórico de aprovações
+  var aprovHtml=aprovs.length===0
+    ?'<p style="font-size:12px;color:var(--tx3)">Nenhuma aprovação registrada.</p>'
+    :aprovs.map(function(a){
+      var tipo={
+        autorizar_faturamento:'Faturamento Autorizado',
+        solicitar_ajuste:'Ajuste Solicitado',
+        aprovar_valores:'Valores Aprovados'
+      }[a.tipo]||a.tipo;
+      return '<div style="padding:10px;background:var(--gn2);border-radius:var(--r);margin-bottom:8px;border-left:3px solid var(--gn)">'
+        +'<div style="font-size:12px;font-weight:700;color:var(--gn)">'+tipo+'</div>'
+        +'<div style="font-size:11px;color:var(--tx3)">Por: '+esc(a.aprovado_por)+' | '+new Date(a.aprovado_em).toLocaleDateString('pt-BR')+'</div>'
+        +(a.observacao?'<div style="font-size:12px;color:var(--tx2);margin-top:4px">'+esc(a.observacao)+'</div>':'')
+        +'</div>';
+    }).join('');
+
+  // Chat
+  var chatHtml=msgs.length===0
+    ?'<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">Nenhuma mensagem ainda.</div>'
+    :msgs.map(function(m){
+      var isCobredor=m.autor_tipo==='cobrador';
+      return '<div style="display:flex;justify-content:'+(isCobredor?'flex-start':'flex-end')+';margin-bottom:10px">'
+        +'<div style="max-width:80%;background:'+(isCobredor?'var(--sf2)':'var(--tl3)')+';border-radius:12px;padding:10px 14px;border:1px solid var(--bd)">'
+        +'<div style="font-size:10px;font-weight:700;color:'+(isCobredor?'var(--tx3)':'var(--tl)')+';margin-bottom:4px">'+esc(m.autor_nome)+'</div>'
+        +'<div style="font-size:13px;color:var(--tx)">'+esc(m.mensagem)+'</div>'
+        +'<div style="font-size:9px;color:var(--tx3);margin-top:4px;text-align:right">'+new Date(m.created_at).toLocaleString('pt-BR')+'</div>'
+        +'</div></div>';
+    }).join('');
+
+  document.getElementById('app').innerHTML=
+    '<div style="min-height:100vh;background:var(--bg)">'
+    // Header
+    +'<div style="background:var(--sf);border-bottom:1.5px solid var(--bd);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;box-shadow:var(--sh)">'
+    +'<div style="font-family:Poppins,sans-serif;font-size:20px;font-weight:800;color:var(--tl)">Virtus</div>'
+    +'<div style="text-align:right">'
+    +'<div style="font-size:11px;color:var(--tx3)">Acesso como</div>'
+    +'<div style="font-size:13px;font-weight:700;color:var(--tx)">'+esc(lk.destinatario_nome)+'</div>'
+    +'</div>'
+    +'</div>'
+    // Conteúdo
+    +'<div style="max-width:900px;margin:0 auto;padding:24px 16px">'
+
+    // Badge do caso
+    +'<div style="margin-bottom:18px">'
+    +'<span style="font-family:monospace;font-size:13px;font-weight:700;background:var(--tl3);color:var(--tl);padding:5px 14px;border-radius:6px;border:1px solid var(--tl4)">'+esc(cir.caso_id||'')+'</span>'
+    +'<span style="font-size:11px;color:var(--tx3);margin-left:10px">Expira em: '+new Date(lk.expira_em).toLocaleDateString('pt-BR')+'</span>'
+    +'</div>'
+
+    // Identificação
+    +'<div class="card" style="margin-bottom:16px">'
+    +'<div class="c-hd">Identificação do Caso</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">'
+    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Paciente</div><div style="font-size:13px;font-weight:700">'+esc(cir.paciente||'--')+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Médico</div><div style="font-size:13px">'+esc(cir.medico||'--')+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Data</div><div style="font-size:13px">'+fmtD(cir.data_cirurgia)+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Hospital</div><div style="font-size:13px">'+esc(hosp?hosp.razao_social:'--')+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Operadora</div><div style="font-size:13px">'+esc(oper?oper.razao_social:'--')+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:3px">Procedimento</div><div style="font-size:13px">'+esc(cir.procedimento||'--')+'</div></div>'
+    +'</div>'
+    +'</div>'
+
+    // Valores
+    +'<div class="card" style="margin-bottom:16px">'
+    +'<div class="c-hd">Valores</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">'
+    +'<div style="text-align:center;background:var(--sf2);border-radius:var(--r2);padding:14px;border:1px solid var(--bd)">'
+    +'<div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:6px">Autorizado</div>'
+    +'<div style="font-size:20px;font-weight:800;color:var(--tl)">'+fmt$(tA)+'</div></div>'
+    +'<div style="text-align:center;background:var(--sf2);border-radius:var(--r2);padding:14px;border:1px solid var(--bd)">'
+    +'<div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:6px">Utilizado</div>'
+    +'<div style="font-size:20px;font-weight:800;color:var(--tx)">'+fmt$(tU)+'</div></div>'
+    +'<div style="text-align:center;background:var(--sf2);border-radius:var(--r2);padding:14px;border:1px solid var(--bd)">'
+    +'<div style="font-size:10px;color:var(--tx3);text-transform:uppercase;font-weight:700;margin-bottom:6px">Faturado</div>'
+    +'<div style="font-size:20px;font-weight:800;color:var(--gn)">'+fmt$(tF)+'</div></div>'
+    +'</div>'
+    +'</div>'
+
+    // Ações (se tiver permissão)
+    +(lk.perm_aprovar?
+      '<div class="card" style="margin-bottom:16px">'
+      +'<div class="c-hd">Ações</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+      +'<button class="btn btn-p" id="btn-portal-autorizar">✅ Autorizar Faturamento</button>'
+      +'<button class="btn btn-s" id="btn-portal-ajuste">⚠️ Solicitar Ajuste</button>'
+      +'</div>'
+      +'<div id="portal-aprov-form" style="display:none;margin-top:14px">'
+      +'<div style="margin-bottom:8px"><label>Observação</label>'
+      +'<textarea id="portal-obs" rows="3" placeholder="Descreva sua observação..."></textarea></div>'
+      +'<div style="display:flex;gap:8px">'
+      +'<button class="btn btn-p" id="btn-portal-confirmar">Confirmar</button>'
+      +'<button class="btn btn-s" id="btn-portal-cancelar-aprov">Cancelar</button>'
+      +'</div></div>'
+      +'<div style="margin-top:12px"><div class="c-hd" style="font-size:10px">Histórico de Aprovações</div>'+aprovHtml+'</div>'
+      +'</div>'
+    :'')
+
+    // Chat
+    +(lk.perm_mensagem?
+      '<div class="card" style="margin-bottom:16px">'
+      +'<div class="c-hd">Mensagens do Caso</div>'
+      +'<div id="portal-chat" style="max-height:320px;overflow-y:auto;padding:8px;background:var(--sf2);border-radius:var(--r);border:1px solid var(--bd);margin-bottom:12px">'+chatHtml+'</div>'
+      +'<div style="display:flex;gap:8px">'
+      +'<textarea id="portal-msg" rows="2" placeholder="Digite sua mensagem..." style="flex:1;resize:none"></textarea>'
+      +'<button class="btn btn-p" id="btn-portal-msg" style="align-self:flex-end">Enviar</button>'
+      +'</div>'
+      +'</div>'
+    :'')
+
+    +'<div style="text-align:center;font-size:10px;color:var(--tx3);margin-top:24px">Virtus — Gestão de Faturamento Médico</div>'
+    +'</div></div>';
+
+  // Binds
+  setTimeout(function(){
+    // Autorizar faturamento
+    var btnAut=document.getElementById('btn-portal-autorizar');
+    if(btnAut)btnAut.onclick=function(){
+      btnAut.setAttribute('data-tipo','autorizar_faturamento');
+      document.getElementById('portal-aprov-form').style.display='block';
+    };
+    var btnAjt=document.getElementById('btn-portal-ajuste');
+    if(btnAjt)btnAjt.onclick=function(){
+      btnAjt.setAttribute('data-tipo','solicitar_ajuste');
+      document.getElementById('portal-aprov-form').style.display='block';
+    };
+    var btnConf=document.getElementById('btn-portal-confirmar');
+    if(btnConf)btnConf.onclick=function(){
+      var tipo=(btnAut&&btnAut.getAttribute('data-tipo'))||
+               (btnAjt&&btnAjt.getAttribute('data-tipo'))||'autorizar_faturamento';
+      var obs=(document.getElementById('portal-obs')||{}).value||'';
+      registrarAprovacao(lk,cir,token,tipo,obs);
+    };
+    var btnCanc=document.getElementById('btn-portal-cancelar-aprov');
+    if(btnCanc)btnCanc.onclick=function(){
+      document.getElementById('portal-aprov-form').style.display='none';
+    };
+
+    // Enviar mensagem
+    var btnMsg=document.getElementById('btn-portal-msg');
+    if(btnMsg)btnMsg.onclick=function(){enviarMsgPortal(lk,cir,token,msgs,aprovs);};
+    var msgEl=document.getElementById('portal-msg');
+    if(msgEl)msgEl.onkeydown=function(e){
+      if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviarMsgPortal(lk,cir,token,msgs,aprovs);}
+    };
+
+    // Scroll chat para o final
+    var chat=document.getElementById('portal-chat');
+    if(chat)chat.scrollTop=chat.scrollHeight;
+  },50);
+}
+
+async function registrarAprovacao(lk,cir,token,tipo,obs){
+  var btn=document.getElementById('btn-portal-confirmar');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>';}
+  var r=await DB.ins('caso_aprovacoes',{
+    caso_id:cir.caso_id,
+    cirurgia_id:lk.cirurgia_id,
+    link_token:lk.token,
+    tipo:tipo,
+    observacao:obs,
+    aprovado_por:lk.destinatario_nome
+  });
+  if(r.error){showAlert('Erro: '+r.error.message,'danger');return;}
+  showAlert(tipo==='autorizar_faturamento'?'Faturamento autorizado com sucesso!':'Solicitação registrada!','success');
+  // Recarregar portal
+  setTimeout(function(){renderPortalDevedor(token);},1000);
+}
+
+async function enviarMsgPortal(lk,cir,token,msgs,aprovs){
+  var msgEl=document.getElementById('portal-msg');
+  var txt=(msgEl?msgEl.value:'').trim();
+  if(!txt)return;
+  var btn=document.getElementById('btn-portal-msg');
+  if(btn){btn.disabled=true;}
+  var r=await DB.ins('caso_mensagens',{
+    caso_id:cir.caso_id,
+    cirurgia_id:lk.cirurgia_id,
+    autor_tipo:'devedor',
+    autor_nome:lk.destinatario_nome,
+    link_token:lk.token,
+    mensagem:txt,
+    lida:false
+  });
+  if(r.error){showAlert('Erro ao enviar: '+r.error.message,'danger');if(btn)btn.disabled=false;return;}
+  if(msgEl)msgEl.value='';
+  if(btn)btn.disabled=false;
+  // Recarregar portal para mostrar nova mensagem
+  renderPortalDevedor(token);
+}
+
+// ══════════════════════════════════════════════════════════
+// FIM PORTAL DO DEVEDOR
+// ══════════════════════════════════════════════════════════
+
+
 (async function(){
   var url=localStorage.getItem(SBU),key=localStorage.getItem(SBK);
   if(!url||!key){renderSetup();return;}
   DB.init(url,key);
+
+  // ── Detectar link de caso (?caso=TOKEN) ──────────────────
+  var searchParams=new URLSearchParams(window.location.search);
+  var casoToken=searchParams.get('caso');
+  if(casoToken){
+    // Limpar da URL sem recarregar
+    history.replaceState(null,null,window.location.pathname);
+    // Mostrar portal do devedor
+    await renderPortalDevedor(casoToken);
+    return;
+  }
 
   // ── Capturar token do hash da URL (link de convite/reset) ──
   var hashStr=window.location.hash||'';
