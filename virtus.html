@@ -658,6 +658,55 @@ function renderSetup(err){
   }
 }
 
+function renderDefinirSenha(msg){
+  document.getElementById('app').innerHTML=
+    '<div class="setup"><div class="setup-card" style="max-width:420px">'
+    +'<div class="setup-logo"><span style="font-family:Poppins,sans-serif;font-size:28px;font-weight:800;color:var(--tl)">Virtus</span></div>'
+    +'<p class="setup-sub">Defina sua senha de acesso</p>'
+    +(msg?'<div class="alert al-d" style="margin-bottom:14px">'+esc(msg)+'</div>':'')
+    +'<p style="font-size:12px;color:var(--tx3);margin-bottom:18px;text-align:center">Escolha uma senha segura para acessar o sistema.</p>'
+    +'<div style="margin-bottom:14px"><label>Nova Senha</label>'
+    +'<input type="password" id="nova-senha" placeholder="Mínimo 6 caracteres" autocomplete="new-password"/></div>'
+    +'<div style="margin-bottom:20px"><label>Confirmar Senha</label>'
+    +'<input type="password" id="conf-senha" placeholder="Repita a senha" autocomplete="new-password"/></div>'
+    +'<button class="btn btn-p" id="btn-definir-senha" style="width:100%;justify-content:center;padding:11px;font-size:14px">Definir Senha e Entrar</button>'
+    +'</div></div>';
+  var btn=document.getElementById('btn-definir-senha');
+  if(btn)btn.onclick=salvarNovaSenha;
+  var inp=document.getElementById('nova-senha');
+  if(inp)inp.focus();
+}
+
+async function salvarNovaSenha(){
+  var senha=(document.getElementById('nova-senha')||{}).value||'';
+  var conf=(document.getElementById('conf-senha')||{}).value||'';
+  if(senha.length<6){renderDefinirSenha('A senha deve ter no mínimo 6 caracteres.');return;}
+  if(senha!==conf){renderDefinirSenha('As senhas não coincidem.');return;}
+  var btn=document.getElementById('btn-definir-senha');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Salvando...';}
+  try{
+    var r=await fetch(DB.url+'/auth/v1/user',{
+      method:'PUT',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':DB.key,
+        'Authorization':'Bearer '+localStorage.getItem('vt_token')
+      },
+      body:JSON.stringify({password:senha})
+    });
+    if(r.ok){
+      await loadData();
+      renderApp();
+      showAlert('Senha definida com sucesso! Bem-vindo ao Virtus!','success');
+    } else {
+      var d=await r.json();
+      renderDefinirSenha('Erro: '+(d.error_description||d.msg||'Falha ao definir senha.'));
+    }
+  }catch(e){
+    renderDefinirSenha('Erro: '+e.message);
+  }
+}
+
 function renderForgotPassword(msg){
   document.getElementById('app').innerHTML=
     '<div class="setup"><div class="setup-card" style="max-width:420px">'
@@ -3213,9 +3262,9 @@ function dlHtml(){
     if(params.access_token){
       localStorage.setItem('vt_token',params.access_token);
       if(params.refresh_token)localStorage.setItem('vt_refresh',params.refresh_token);
-      // Limpar hash da URL sem recarregar
       history.replaceState(null,null,window.location.pathname+window.location.search);
-      // Carregar perfil e entrar no sistema
+
+      // Carregar usuário autenticado
       var authUser=await DB.getUser();
       if(authUser&&authUser.id){
         var perfil=await carregarPerfil(authUser.id,authUser.email);
@@ -3226,9 +3275,16 @@ function dlHtml(){
           perfil:perfil?perfil.perfil:'operador'
         };
         localStorage.setItem('vt_user',JSON.stringify(S.user));
+
+        // Se veio de link de recovery → mostrar tela de definir senha
+        if(params.type==='recovery'){
+          renderDefinirSenha();
+          return;
+        }
+
         await loadData();
         renderApp();
-        showAlert('Bem-vindo ao Virtus! Defina uma senha segura em seu perfil.','success');
+        showAlert('Bem-vindo ao Virtus!','success');
         return;
       }
     }
