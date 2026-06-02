@@ -513,9 +513,31 @@ const S={page:'dashboard',devs:[],cirs:[],prods:[],protos:[],usuarios:[],
   filtHosp:'',filtOper:'',filtOrigem:'',filtMinhas:false,agFiltMinhas:false,
   user:null}; // user = {id, email, perfil, nome}
 
-const STATUS={aguardando:'Aguardando Autorizacao de Faturamento',autorizado:'Faturamento Autorizado',
-  faturado:'Totalmente Faturado',pag_pendente:'Pendencia de Pagamento',pag_realizado:'Processo Concluido'};
-const SBADGE={aguardando:'bag',autorizado:'bau',faturado:'bfa',pag_pendente:'bpp',pag_realizado:'bpr'};
+const STATUS={
+  'Aguardando Autorizacao de Faturamento':'Aguardando Autorizacao de Faturamento',
+  'Faturamento Autorizado':'Faturamento Autorizado',
+  'Totalmente Faturado':'Totalmente Faturado',
+  'Pendencia de Pagamento':'Pendencia de Pagamento',
+  'Processo Concluido':'Processo Concluido',
+  'Cobranca Recusada':'Cobranca Recusada',
+  'Pedido de Esclarecimento':'Pedido de Esclarecimento',
+  // legado (caso existam registros antigos)
+  aguardando:'Aguardando Autorizacao de Faturamento',
+  autorizado:'Faturamento Autorizado',
+  faturado:'Totalmente Faturado',
+  pag_pendente:'Pendencia de Pagamento',
+  pag_realizado:'Processo Concluido'
+};
+const SBADGE={
+  'Aguardando Autorizacao de Faturamento':'bag',
+  'Faturamento Autorizado':'bau',
+  'Totalmente Faturado':'bfa',
+  'Pendencia de Pagamento':'bpp',
+  'Processo Concluido':'bpr',
+  'Cobranca Recusada':'brd',
+  'Pedido de Esclarecimento':'bam',
+  aguardando:'bag',autorizado:'bau',faturado:'bfa',pag_pendente:'bpp',pag_realizado:'bpr'
+};
 const PORTAIS=['Opmenexo','Inpart','EMS Ventura','GT Plan','Apoio','E-mail','Outros'];
 const ESPEC=['Ortopedia','Cardiologia','Neurologia','Cirurgia Geral','Oncologia','Urologia','Ginecologia','Outros'];
 const DEPTOS=['Compras','Autorizacao','Auditoria','Faturamento','Diretoria','Outros'];
@@ -567,7 +589,7 @@ const matTot=arr=>(arr||[]).reduce((s,m)=>s+parseFloat(m.vTotal||0),0);
 
 const emptyMat=()=>({_id:uid(),ref:'',desc:'',qty:1,vUnit:'',vTotal:''});
 const emptyAtv=()=>({_id:uid(),tipo:'E-mail',data:'',horario:'',duracao:'',contato:'',telefone:'',email:'',registro:'',proximo_passo:'',data_proximo:'',anexos:[]});
-const emptyCir=()=>({paciente:'',medico:'',hospital_id:'',operadora_id:'',data_cirurgia:'',especialidade:'',procedimento:'',origem:'Opmenexo',status:'aguardando',obs:'',fonte_pagadora:'',id_cotacao_portal:'',responsavel_id:'',caso_id:'',mat_orcado:[emptyMat()],mat_autorizado:[emptyMat()],mat_utilizado:[emptyMat()],mat_fat_autorizado:[emptyMat()],mat_faturado:[emptyMat()],resp_orcado:[],resp_autorizado:[],resp_utilizado:[],resp_fat_autorizado:[],resp_faturado:[],evidencias_pre:[],evidencias_pos:[],atividades:[]});
+const emptyCir=()=>({paciente:'',medico:'',hospital_id:'',operadora_id:'',data_cirurgia:'',especialidade:'',procedimento:'',origem:'Opmenexo',status:'Aguardando Autorizacao de Faturamento',obs:'',fonte_pagadora:'',id_cotacao_portal:'',responsavel_id:'',caso_id:'',mat_orcado:[emptyMat()],mat_autorizado:[emptyMat()],mat_utilizado:[emptyMat()],mat_fat_autorizado:[emptyMat()],mat_faturado:[emptyMat()],resp_orcado:[],resp_autorizado:[],resp_utilizado:[],resp_fat_autorizado:[],resp_faturado:[],evidencias_pre:[],evidencias_pos:[],atividades:[]});
 const emptyDev=()=>({razao_social:'',cnpj:'',tipo:'Hospital',endereco:'',cidade:'',uf:'',cep:'',telefones:'',emails:'',obs:'',contatos:[]});
 const emptyCnt=()=>({_id:uid(),nome:'',departamento:'Faturamento',nivel:'Analista',telefone:'',email:''});
 
@@ -1018,11 +1040,13 @@ function buildDonut(data,label,fmt_fn,centerFmt){
   }
 
 function renderDash(){
-  const ag=S.cirs.filter(c=>c.status==='aguardando').length;
-  const au=S.cirs.filter(c=>c.status==='autorizado').length;
-  const fa=S.cirs.filter(c=>c.status==='faturado').length;
-  const pp=S.cirs.filter(c=>c.status==='pag_pendente').length;
-  const pr=S.cirs.filter(c=>c.status==='pag_realizado').length;
+  const ag=S.cirs.filter(c=>c.status==='Aguardando Autorizacao de Faturamento'||c.status==='aguardando').length;
+  const au=S.cirs.filter(c=>c.status==='Faturamento Autorizado'||c.status==='autorizado').length;
+  const fa=S.cirs.filter(c=>c.status==='Totalmente Faturado'||c.status==='faturado').length;
+  const pp=S.cirs.filter(c=>c.status==='Pendencia de Pagamento'||c.status==='pag_pendente').length;
+  const pr=S.cirs.filter(c=>c.status==='Processo Concluido'||c.status==='pag_realizado').length;
+  const cr=S.cirs.filter(c=>c.status==='Cobranca Recusada').length;
+  const pe=S.cirs.filter(c=>c.status==='Pedido de Esclarecimento').length;
   const util=S.cirs.reduce((s,c)=>s+matTot(c.mat_utilizado),0);
   const aut=S.cirs.reduce((s,c)=>s+matTot(c.mat_autorizado),0);
   const fat=S.cirs.reduce((s,c)=>s+matTot(c.mat_faturado),0);
@@ -1059,11 +1083,13 @@ function renderDash(){
 
   // ── Gráfico de Barras Verticais — Cirurgias por Status ──
   const statusData=[
-    {k:'aguardando',v:ag,lbl:'Aguardando',cor:'var(--am)'},
-    {k:'autorizado',v:au,lbl:'Autorizado',cor:'var(--tl)'},
-    {k:'faturado',v:fa,lbl:'Faturado',cor:'var(--pu)'},
-    {k:'pag_pendente',v:pp,lbl:'Pgto.Pend.',cor:'var(--rd)'},
-    {k:'pag_realizado',v:pr,lbl:'Pgto.Real.',cor:'var(--gn)'},
+    {k:'Aguardando Autorizacao de Faturamento',v:ag,lbl:'Aguardando',cor:'var(--am)'},
+    {k:'Faturamento Autorizado',v:au,lbl:'Autorizado',cor:'var(--tl)'},
+    {k:'Totalmente Faturado',v:fa,lbl:'Faturado',cor:'var(--pu)'},
+    {k:'Pendencia de Pagamento',v:pp,lbl:'Pgto.Pend.',cor:'var(--rd)'},
+    {k:'Processo Concluido',v:pr,lbl:'Concluido',cor:'var(--gn)'},
+    {k:'Cobranca Recusada',v:cr,lbl:'Recusada',cor:'var(--rd)'},
+    {k:'Pedido de Esclarecimento',v:pe,lbl:'Esclarec.',cor:'var(--am)'},
   ];
   const maxBar=Math.max(...statusData.map(d=>d.v),1);
   const barW=42, barGap=14, chartH=120, svgW=statusData.length*(barW+barGap)+barGap;
@@ -1522,9 +1548,10 @@ function renderCirs(){
       +'</div></td></tr>';
   }).join('');
 
+  var ST_CANONICOS=['Aguardando Autorizacao de Faturamento','Faturamento Autorizado','Totalmente Faturado','Pendencia de Pagamento','Processo Concluido','Cobranca Recusada','Pedido de Esclarecimento'];
   var stOpts='<option value="todos">Todos os Status</option>'
-    +Object.entries(STATUS).map(function(e){
-      return '<option value="'+e[0]+'"'+(S.stCir===e[0]?' selected':'')+'>'+e[1]+'</option>';
+    +ST_CANONICOS.map(function(v){
+      return '<option value="'+v+'"'+(S.stCir===v?' selected':'')+'>'+v+'</option>';
     }).join('');
 
   var hospOpts='<option value="">Todos os Hospitais</option>'
@@ -1720,7 +1747,8 @@ function renderMCir(){
 
   const hOpts=S.devs.filter(d=>d.tipo==='Hospital').map(h=>'<option value="'+h.id+'"'+(CF.hospital_id===h.id?' selected':'')+'>'+esc(h.razao_social)+'</option>').join('');
   const oOpts=S.devs.filter(d=>d.tipo==='Operadora').map(o=>'<option value="'+o.id+'"'+(CF.operadora_id===o.id?' selected':'')+'>'+esc(o.razao_social)+'</option>').join('');
-  const stOpts=Object.entries(STATUS).map(([k,v])=>'<option value="'+k+'"'+(CF.status===k?' selected':'')+'>'+v+'</option>').join('');
+  const ST_CANONICOS=['Aguardando Autorizacao de Faturamento','Faturamento Autorizado','Totalmente Faturado','Pendencia de Pagamento','Processo Concluido','Cobranca Recusada','Pedido de Esclarecimento'];
+  const stOpts=ST_CANONICOS.map(v=>'<option value="'+v+'"'+(CF.status===v?' selected':'')+'>'+v+'</option>').join('');
   const espOpts=ESPEC.map(e=>'<option'+(CF.especialidade===e?' selected':'')+'>'+e+'</option>').join('');
   const porOpts=PORTAIS.map(p=>'<option'+(CF.origem===p?' selected':'')+'>'+p+'</option>').join('');
 
@@ -1982,7 +2010,43 @@ function buildEvid(){
   var posOpts=EV_POS.map(t=>'<option>'+t+'</option>').join('');
   var preL=(CF.evidencias_pre||[]).map(function(ev,i){return '<div class="ev-item">Arq <strong>'+esc(ev.tipo)+':</strong> '+esc(ev.nome)+' <span class="ev-rm" onclick="rmEv(\'pre\','+i+')">X</span></div>';}).join('');
   var posL=(CF.evidencias_pos||[]).map(function(ev,i){return '<div class="ev-item">Arq <strong>'+esc(ev.tipo)+':</strong> '+esc(ev.nome)+' <span class="ev-rm" onclick="rmEv(\'pos\','+i+')">X</span></div>';}).join('');
-  return '<div class="c-hd">Pre-Cirurgico</div>'
+
+  // ── Seção: Anexos do Cliente (Devedor) ──────────────────
+  var aprovs=CF._aprovacoes||[];
+  var decisao=aprovs.find(function(a){return a.decisao;});
+  var anexosDevedor=aprovs.filter(function(a){return a.doc_nome&&a.doc_data;});
+
+  var decisaoHtml='';
+  if(decisao){
+    var dCor=decisao.decisao==='Aprovado'?'var(--gn)':decisao.decisao==='Recusado'?'var(--rd)':'var(--am)';
+    var dBg=decisao.decisao==='Aprovado'?'var(--gn2)':decisao.decisao==='Recusado'?'var(--rd2)':'var(--am2)';
+    decisaoHtml='<div style="padding:14px;background:'+dBg+';border-radius:var(--r2);border-left:4px solid '+dCor+';margin-bottom:12px">'
+      +'<div style="font-size:13px;font-weight:700;color:'+dCor+'">'+esc(decisao.decisao)+'</div>'
+      +'<div style="font-size:11px;color:var(--tx3);margin-top:3px">Por: '+esc(decisao.aprovado_por)+' — '+new Date(decisao.aprovado_em||decisao.decisao_em||Date.now()).toLocaleString('pt-BR')+'</div>'
+      +(decisao.recusa_razao?'<div style="font-size:12px;color:var(--tx2);margin-top:6px"><strong>Razão:</strong> '+esc(decisao.recusa_razao)+'</div>':'')
+      +(decisao.esclarecimento_tipos&&decisao.esclarecimento_tipos.length?'<div style="font-size:12px;color:var(--tx2);margin-top:6px"><strong>Esclarecimentos solicitados:</strong> '+esc(decisao.esclarecimento_tipos.join(', '))+(decisao.esclarecimento_outros?' — '+esc(decisao.esclarecimento_outros):'')+'</div>':'')
+      +'</div>';
+  }
+
+  var anexosHtml=anexosDevedor.length===0
+    ?'<div style="font-size:12px;color:var(--tx3);padding:10px 0">Nenhum anexo enviado pelo Devedor ainda.</div>'
+    :anexosDevedor.map(function(a){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--sf2);border-radius:var(--r);border:1px solid var(--bd);margin-bottom:6px">'
+        +'<span style="font-size:18px">&#128196;</span>'
+        +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+esc(a.doc_nome)+'</div>'
+        +(a.doc_tipo?'<div style="font-size:10px;color:var(--tx3)">'+esc(a.doc_tipo)+'</div>':'')
+        +'</div>'
+        +'<a href="'+a.doc_data+'" download="'+esc(a.doc_nome)+'" style="font-size:11px;color:var(--tl);font-weight:700;text-decoration:none;padding:4px 10px;border:1px solid var(--tl4);border-radius:var(--r)">&#11015; Baixar</a>'
+        +'</div>';
+    }).join('');
+
+  // ── Botão Compartilhar rápido ────────────────────────────
+  var btnCompartilhar='<div style="display:flex;justify-content:flex-end;margin-bottom:16px">'
+    +'<button class="btn btn-s btn-sm" onclick="CT=\'compartilhar\';renderMCir()" style="display:flex;align-items:center;gap:6px">&#128279; Compartilhar com Devedor</button>'
+    +'</div>';
+
+  return btnCompartilhar
+    +'<div class="c-hd">Pre-Cirurgico</div>'
     +'<div class="form-row fr2" style="margin-bottom:7px">'
     +'<div><label>Tipo de Evidencia</label><select id="ev-pre-tp">'+pOpts+'</select></div>'
     +'<div style="display:flex;align-items:flex-end"><button class="btn btn-s" onclick="document.getElementById(\'ev-pre-f\').click()">Selecionar Arquivo</button>'
@@ -1994,7 +2058,14 @@ function buildEvid(){
     +'<div><label>Tipo de Evidencia</label><select id="ev-pos-tp">'+posOpts+'</select></div>'
     +'<div style="display:flex;align-items:flex-end"><button class="btn btn-s" onclick="document.getElementById(\'ev-pos-f\').click()">Selecionar Arquivo</button>'
     +'<input type="file" id="ev-pos-f" style="display:none" multiple accept=".pdf,.jpg,.png,.doc,.docx,.xls,.xlsx" onchange="hdEv(\'pos\',this)"/></div>'
-    +'</div><div class="ev-list">'+(posL||'<span style="font-size:12px;color:var(--tx3)">Nenhum arquivo</span>')+'</div>';
+    +'</div><div class="ev-list">'+(posL||'<span style="font-size:12px;color:var(--tx3)">Nenhum arquivo</span>')+'</div>'
+    +'<hr class="sep"/>'
+    // ── Seção Devedor ──
+    +'<div class="c-hd">Anexos do Cliente (Devedor)</div>'
+    +anexosHtml
+    +'<hr class="sep"/>'
+    +'<div class="c-hd">Decisao do Devedor</div>'
+    +(decisaoHtml||'<div style="font-size:12px;color:var(--tx3);padding:10px 0">Nenhuma decisao registrada ainda.</div>');
 }
 function rmEv(fase,i){if(fase==='pre')CF.evidencias_pre.splice(i,1);else CF.evidencias_pos.splice(i,1);renderMCir();}
 function hdEv(fase,input){
@@ -3442,7 +3513,7 @@ async function impCir(input){
     var oper=S.devs.find(d=>d.razao_social.toLowerCase()===(row.operadora||'').toLowerCase());
     var dt='';
     if(row.data_cirurgia){var p=row.data_cirurgia.split('/');if(p.length===3)dt=p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0');else dt=row.data_cirurgia;}
-    var r=await DB.ins('cirurgias',{paciente:row.paciente,medico:row.medico||'',hospital_id:hosp?hosp.id:null,operadora_id:oper?oper.id:null,data_cirurgia:dt||null,especialidade:row.especialidade||'',procedimento:row.procedimento||'',origem:row.origem||'Outros',status:row.status||'aguardando',obs:'',fonte_pagadora:row.fonte_pagadora||'',mat_orcado:[],mat_autorizado:[],mat_utilizado:[],mat_faturado:[],evidencias_pre:[],evidencias_pos:[],atividades:[]});
+    var r=await DB.ins('cirurgias',{paciente:row.paciente,medico:row.medico||'',hospital_id:hosp?hosp.id:null,operadora_id:oper?oper.id:null,data_cirurgia:dt||null,especialidade:row.especialidade||'',procedimento:row.procedimento||'',origem:row.origem||'Outros',status:row.status||'Aguardando Autorizacao de Faturamento',obs:'',fonte_pagadora:row.fonte_pagadora||'',mat_orcado:[],mat_autorizado:[],mat_utilizado:[],mat_faturado:[],evidencias_pre:[],evidencias_pos:[],atividades:[]});
     if(r.error)err++;else ok++;
   }
   await loadData();
@@ -3694,16 +3765,12 @@ async function renderPortalDevedor(token){
   var hosp=devsArr.find(function(d){return d.id===cir.hospital_id;});
   var oper=devsArr.find(function(d){return d.id===cir.operadora_id;});
 
-  // Buscar mensagens do caso (anon)
-  var rm=await dbAnonSel('caso_mensagens',{cirurgia_id:lk.cirurgia_id});
-  var msgs=rm.data||[];
-
   // Buscar aprovacoes existentes (anon)
   var ra=await dbAnonSel('caso_aprovacoes',{cirurgia_id:lk.cirurgia_id});
   var aprovs=ra.data||[];
 
   // Renderizar portal
-  renderPortalUI(lk,cir,hosp,oper,msgs,aprovs,token);
+  renderPortalUI(lk,cir,hosp,oper,aprovs,token);
 }
 
 function renderPortalErro(titulo,msg){
@@ -3717,7 +3784,7 @@ function renderPortalErro(titulo,msg){
     +'</div></div>';
 }
 
-function renderPortalUI(lk,cir,hosp,oper,msgs,aprovs,token){
+function renderPortalUI(lk,cir,hosp,oper,aprovs,token){
   // ── Reutilizar a lógica do Dossiê interno ──────────────
   var tO=matTot(cir.mat_orcado||[]);
   var tA=matTot(cir.mat_autorizado||[]);
@@ -3798,32 +3865,19 @@ function renderPortalUI(lk,cir,hosp,oper,msgs,aprovs,token){
   }
 
   // ── Chat ─────────────────────────────────────────────────
-  var chatHtml=msgs.length===0
-    ?'<div style="text-align:center;padding:30px;color:var(--tx3);font-size:13px">Nenhuma mensagem ainda. Inicie a conversa abaixo.</div>'
-    :msgs.map(function(m){
-      var isCob=m.autor_tipo==='cobrador';
-      return '<div style="display:flex;justify-content:'+(isCob?'flex-start':'flex-end')+';margin-bottom:12px">'
-        +'<div style="max-width:75%;background:'+(isCob?'var(--sf)':'var(--tl3)')+';border-radius:12px;padding:12px 16px;border:1px solid '+(isCob?'var(--bd)':'var(--tl4)')+';box-shadow:var(--sh)">'
-        +'<div style="font-size:10px;font-weight:700;color:'+(isCob?'var(--tx3)':'var(--tl)')+';margin-bottom:5px">'+esc(m.autor_nome)+'</div>'
-        +'<div style="font-size:13px;color:var(--tx);line-height:1.5">'+esc(m.mensagem)+'</div>'
-        +'<div style="font-size:9px;color:var(--tx3);margin-top:6px;text-align:right">'+new Date(m.created_at).toLocaleString('pt-BR')+'</div>'
-        +'</div></div>';
-    }).join('');
-
-  // ── Aprovações ───────────────────────────────────────────
+  // ── Histórico de Ações do Devedor ─────────────────────────
   var aprovHtml=aprovs.length===0?''
     :aprovs.map(function(a){
-      var tipoLabel={
-        autorizar_faturamento:'Faturamento Autorizado',
-        solicitar_ajuste:'Ajuste Solicitado',
-        aprovar_valores:'Valores Aprovados'
-      }[a.tipo]||a.tipo;
-      var bg=a.tipo==='solicitar_ajuste'?'var(--am2)':'var(--gn2)';
-      var cor=a.tipo==='solicitar_ajuste'?'var(--am)':'var(--gn)';
+      var dec=a.decisao||a.tipo||'';
+      var bg=dec==='Aprovado'?'var(--gn2)':dec==='Recusado'?'var(--rd2)':'var(--am2)';
+      var cor=dec==='Aprovado'?'var(--gn)':dec==='Recusado'?'var(--rd)':'var(--am)';
+      var label=dec==='Aprovado'?'Faturamento Aprovado':dec==='Recusado'?'Faturamento Recusado':dec==='Pedido de Esclarecimento'?'Pedido de Esclarecimento':dec;
       return '<div style="padding:12px 16px;background:'+bg+';border-radius:var(--r2);margin-bottom:8px;border-left:4px solid '+cor+'">'
-        +'<div style="font-size:13px;font-weight:700;color:'+cor+'">'+tipoLabel+'</div>'
-        +'<div style="font-size:11px;color:var(--tx3);margin-top:3px">'+esc(a.aprovado_por)+' — '+new Date(a.aprovado_em).toLocaleDateString('pt-BR')+'</div>'
-        +(a.observacao?'<div style="font-size:12px;color:var(--tx2);margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08)">'+esc(a.observacao)+'</div>':'')
+        +'<div style="font-size:13px;font-weight:700;color:'+cor+'">'+esc(label)+'</div>'
+        +'<div style="font-size:11px;color:var(--tx3);margin-top:3px">'+esc(a.aprovado_por)+' — '+new Date(a.aprovado_em||a.decisao_em||Date.now()).toLocaleDateString('pt-BR')+'</div>'
+        +(a.recusa_razao?'<div style="font-size:12px;color:var(--tx2);margin-top:6px"><strong>Razão:</strong> '+esc(a.recusa_razao)+'</div>':'')
+        +(a.esclarecimento_tipos&&a.esclarecimento_tipos.length?'<div style="font-size:12px;color:var(--tx2);margin-top:4px"><strong>Esclarecimentos:</strong> '+esc(a.esclarecimento_tipos.join(', '))+(a.esclarecimento_outros?' — '+esc(a.esclarecimento_outros):'')+'</div>':'')
+        +(a.doc_nome&&a.doc_data?'<div style="margin-top:8px;display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.5);border-radius:var(--r)"><span>&#128196;</span><span style="font-size:12px;font-weight:600">'+esc(a.doc_nome)+'</span><a href="'+a.doc_data+'" download="'+esc(a.doc_nome)+'" style="margin-left:auto;font-size:11px;color:var(--tl);font-weight:700;text-decoration:none;padding:3px 8px;border:1px solid var(--tl4);border-radius:4px">&#11015;</a></div>':'')
         +'</div>';
     }).join('');
 
@@ -3909,49 +3963,53 @@ function renderPortalUI(lk,cir,hosp,oper,msgs,aprovs,token){
     // ── BLOCO 5: Aprovações existentes ──────────────────────
     +(aprovs.length?'<div class="card" style="margin-bottom:16px"><div class="c-hd">Historico de Acoes</div>'+aprovHtml+'</div>':'')
 
-    // ── BLOCO 6: Ações do devedor ────────────────────────────
+    // ── BLOCO 6: Decisão do Devedor ──────────────────────────
     +(lk.perm_aprovar
       ?'<div class="card" style="margin-bottom:16px" id="portal-acoes">'
-        +'<div class="c-hd">Autorizar Faturamento</div>'
-        +'<p style="font-size:13px;color:var(--tx2);margin-bottom:16px">Para autorizar o faturamento desta cirurgia, anexe o documento de Ordem de Compra (OC) ou Autorizacao de Faturamento (AF) e confirme abaixo.</p>'
-        +'<div id="portal-aprov-form">'
-        +'<div style="margin-bottom:12px">'
-        +'<label>Tipo de Documento *</label>'
-        +'<select id="portal-doc-tipo" style="margin-bottom:10px">'
-        +'<option value="">-- Selecione o tipo --</option>'
-        +'<option value="Ordem de Compra">Ordem de Compra (OC)</option>'
-        +'<option value="Autorizacao de Faturamento">Autorizacao de Faturamento (AF)</option>'
-        +'<option value="Pos Cirurgico">Pos Cirurgico</option>'
-        +'<option value="Folha de Sala">Folha de Sala</option>'
-        +'<option value="Outros">Outros</option>'
-        +'</select>'
-        +'</div>'
-        +'<div style="margin-bottom:12px">'
-        +'<label>Anexar Documento</label>'
-        +'<div style="display:flex;align-items:center;gap:10px;margin-top:4px">'
-        +'<button class="btn btn-s" type="button" id="btn-portal-selecionar">&#128206; Selecionar Arquivo</button>'
-        +'<span id="portal-doc-nome" style="font-size:12px;color:var(--tx3)">Nenhum arquivo selecionado</span>'
-        +'</div>'
-        +'<input type="file" id="portal-doc-file" style="display:none" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" onchange="portalDocSelecionado(this)"/>'
-        +'</div>'
+        +'<div class="c-hd">Sua Decisao sobre este Faturamento</div>'
+        +'<p style="font-size:13px;color:var(--tx2);margin-bottom:16px">Analise o dossiê acima e registre sua decisão. Você pode aprovar, recusar ou solicitar esclarecimentos adicionais.</p>'
+        +'<div id="portal-decisao-form">'
         +'<div style="margin-bottom:14px">'
-        +'<label>Numero do Documento / Observacao</label>'
-        +'<input type="text" id="portal-obs" placeholder="Ex: OC-2026-3321 ou observacao adicional"/>'
-        +'</div>'
-        +'<div style="display:flex;gap:8px">'
-        +'<button class="btn btn-p" id="btn-portal-confirmar">&#10003; Confirmar Autorizacao</button>'
+        +'<label style="font-weight:700;font-size:12px;display:block;margin-bottom:8px">Decisão *</label>'
+        +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+        +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:10px 16px;border-radius:var(--r2);border:2px solid var(--bd);flex:1;min-width:140px" id="lbl-dec-aprov">'
+        +'<input type="radio" name="portal-decisao" value="Aprovado" id="dec-aprov"/> <span style="font-weight:600;color:var(--gn)">✓ Aprovar Faturamento</span></label>'
+        +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:10px 16px;border-radius:var(--r2);border:2px solid var(--bd);flex:1;min-width:140px" id="lbl-dec-rec">'
+        +'<input type="radio" name="portal-decisao" value="Recusado" id="dec-rec"/> <span style="font-weight:600;color:var(--rd)">✗ Recusar Faturamento</span></label>'
+        +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:10px 16px;border-radius:var(--r2);border:2px solid var(--bd);flex:1;min-width:140px" id="lbl-dec-escl">'
+        +'<input type="radio" name="portal-decisao" value="Pedido de Esclarecimento" id="dec-escl"/> <span style="font-weight:600;color:var(--am)">? Pedir Esclarecimentos</span></label>'
         +'</div></div>'
+        +'<div id="portal-campos-aprov" style="display:none;margin-bottom:12px">'
+        +'<label>Anexar Ordem de Compra (OC) — opcional</label>'
+        +'<div style="display:flex;align-items:center;gap:10px;margin-top:4px">'
+        +'<button class="btn btn-s" type="button" id="btn-portal-oc">&#128206; Selecionar OC</button>'
+        +'<span id="portal-oc-nome" style="font-size:12px;color:var(--tx3)">Nenhum arquivo selecionado</span>'
         +'</div>'
-      :'')
-
-    // ── BLOCO 7: Chat ────────────────────────────────────────
-    +(lk.perm_mensagem
-      ?'<div class="card" style="margin-bottom:16px">'
-        +'<div class="c-hd">Mensagens do Caso</div>'
-        +'<div id="portal-chat" style="max-height:400px;overflow-y:auto;padding:12px;background:var(--sf2);border-radius:var(--r);border:1px solid var(--bd);margin-bottom:14px">'+chatHtml+'</div>'
-        +'<div style="display:flex;gap:10px;align-items:flex-end">'
-        +'<textarea id="portal-msg" rows="2" placeholder="Digite sua mensagem..." style="flex:1;resize:none"></textarea>'
-        +'<button class="btn btn-p" id="btn-portal-msg">Enviar</button>'
+        +'<input type="file" id="portal-oc-file" style="display:none" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"/>'
+        +'</div>'
+        +'<div id="portal-campos-rec" style="display:none;margin-bottom:12px">'
+        +'<label>Razão da Recusa *</label>'
+        +'<textarea id="portal-recusa-razao" rows="3" placeholder="Descreva o motivo da recusa..." style="width:100%;resize:vertical;padding:8px;border:1.5px solid var(--bd);border-radius:var(--r);font-size:13px"></textarea>'
+        +'</div>'
+        +'<div id="portal-campos-escl" style="display:none;margin-bottom:12px">'
+        +'<label style="display:block;margin-bottom:8px;font-weight:700">Tipo(s) de Esclarecimento Necessário *</label>'
+        +'<div style="display:flex;flex-direction:column;gap:8px">'
+        +'<label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px"><input type="checkbox" class="escl-tipo" value="Cotacao Autorizada"/> Cotação Autorizada</label>'
+        +'<label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px"><input type="checkbox" class="escl-tipo" value="Atribuicao de Fonte Pagadora"/> Atribuição de Fonte Pagadora</label>'
+        +'<label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px"><input type="checkbox" class="escl-tipo" value="Orcamento Pos Cirurgico"/> Orçamento Pós Cirúrgico</label>'
+        +'<label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px"><input type="checkbox" class="escl-tipo" value="Folha de Sala"/> Folha de Sala</label>'
+        +'<label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px"><input type="checkbox" class="escl-tipo" value="Laudo Medico"/> Laudo Médico</label>'
+        +'<label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px"><input type="checkbox" class="escl-tipo" value="Justificativa Medica"/> Justificativa Médica</label>'
+        +'<label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px"><input type="checkbox" class="escl-tipo" value="Outros" id="escl-outros-chk"/> Outros</label>'
+        +'</div>'
+        +'<div id="portal-outros-wrap" style="display:none;margin-top:8px">'
+        +'<label>Descreva o esclarecimento necessário</label>'
+        +'<textarea id="portal-outros-desc" rows="2" placeholder="Descreva..." style="width:100%;resize:vertical;padding:8px;border:1.5px solid var(--bd);border-radius:var(--r);font-size:13px"></textarea>'
+        +'</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:8px;margin-top:12px">'
+        +'<button class="btn btn-p" id="btn-portal-confirmar">Confirmar Decisao</button>'
+        +'</div>'
         +'</div>'
         +'</div>'
       :'')
@@ -3963,32 +4021,42 @@ function renderPortalUI(lk,cir,hosp,oper,msgs,aprovs,token){
 
   // ── Binds ────────────────────────────────────────────────
   setTimeout(function(){
-    // Bind selecionar arquivo
-    var btnSel=document.getElementById('btn-portal-selecionar');
-    if(btnSel)btnSel.onclick=function(){
-      var fi=document.getElementById('portal-doc-file');
-      if(fi)fi.click();
+    // Mostrar/ocultar campos conforme decisão selecionada
+    document.querySelectorAll('input[name="portal-decisao"]').forEach(function(radio){
+      radio.onchange=function(){
+        document.getElementById('portal-campos-aprov').style.display=radio.value==='Aprovado'?'block':'none';
+        document.getElementById('portal-campos-rec').style.display=radio.value==='Recusado'?'block':'none';
+        document.getElementById('portal-campos-escl').style.display=radio.value==='Pedido de Esclarecimento'?'block':'none';
+        // highlight selecionado
+        ['lbl-dec-aprov','lbl-dec-rec','lbl-dec-escl'].forEach(function(id){
+          var el=document.getElementById(id);
+          if(el)el.style.border='2px solid var(--bd)';
+        });
+        var lblMap={'Aprovado':'lbl-dec-aprov','Recusado':'lbl-dec-rec','Pedido de Esclarecimento':'lbl-dec-escl'};
+        var sel=document.getElementById(lblMap[radio.value]);
+        if(sel)sel.style.border='2px solid '+(radio.value==='Aprovado'?'var(--gn)':radio.value==='Recusado'?'var(--rd)':'var(--am)');
+      };
+    });
+
+    // OC file
+    var btnOc=document.getElementById('btn-portal-oc');
+    if(btnOc)btnOc.onclick=function(){var fi=document.getElementById('portal-oc-file');if(fi)fi.click();};
+    var ocFile=document.getElementById('portal-oc-file');
+    if(ocFile)ocFile.onchange=function(){
+      var nomeEl=document.getElementById('portal-oc-nome');
+      if(nomeEl&&this.files[0])nomeEl.textContent=this.files[0].name;
     };
 
-    // Bind confirmar autorizacao com documento
+    // Outros checkbox
+    var outrosChk=document.getElementById('escl-outros-chk');
+    if(outrosChk)outrosChk.onchange=function(){
+      var wrap=document.getElementById('portal-outros-wrap');
+      if(wrap)wrap.style.display=this.checked?'block':'none';
+    };
+
+    // Confirmar decisão
     var btnConf=document.getElementById('btn-portal-confirmar');
-    if(btnConf)btnConf.onclick=function(){
-      var tipo=(document.getElementById('portal-doc-tipo')||{}).value||'autorizar_faturamento';
-      var obs=(document.getElementById('portal-obs')||{}).value||'';
-      if(!tipo){showAlert('Selecione o tipo de documento.','warn');return;}
-      registrarAprovacaoComDoc(lk,cir,token,obs,tipo);
-    };
-
-    var btnMsg=document.getElementById('btn-portal-msg');
-    if(btnMsg)btnMsg.onclick=function(){enviarMsgPortal(lk,cir,token,msgs,aprovs);};
-
-    var msgEl=document.getElementById('portal-msg');
-    if(msgEl)msgEl.onkeydown=function(e){
-      if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviarMsgPortal(lk,cir,token,msgs,aprovs);}
-    };
-
-    var chat=document.getElementById('portal-chat');
-    if(chat)chat.scrollTop=chat.scrollHeight;
+    if(btnConf)btnConf.onclick=function(){registrarDecisaoPortal(lk,cir,token);};
   },50);
 }
 
@@ -4053,6 +4121,89 @@ function portalDocSelecionado(input){
   if(nomeEl)nomeEl.textContent=file.name;
 }
 
+// ── Nova função principal de decisão do Devedor ──────────────
+async function registrarDecisaoPortal(lk,cir,token){
+  var radios=document.querySelectorAll('input[name="portal-decisao"]');
+  var decisao='';
+  radios.forEach(function(r){if(r.checked)decisao=r.value;});
+  if(!decisao){showAlert('Selecione uma decisão antes de confirmar.','warn');return;}
+
+  var btn=document.getElementById('btn-portal-confirmar');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Enviando...';}
+
+  var recusaRazao='';
+  var esclTipos=[];
+  var esclOutros='';
+  var ocNome='';
+  var ocData=null;
+
+  if(decisao==='Recusado'){
+    recusaRazao=(document.getElementById('portal-recusa-razao')||{}).value||'';
+    if(!recusaRazao.trim()){
+      showAlert('Informe a razão da recusa.','warn');
+      if(btn){btn.disabled=false;btn.innerHTML='Confirmar Decisao';}
+      return;
+    }
+  }
+
+  if(decisao==='Pedido de Esclarecimento'){
+    document.querySelectorAll('.escl-tipo:checked').forEach(function(c){esclTipos.push(c.value);});
+    if(!esclTipos.length){
+      showAlert('Selecione ao menos um tipo de esclarecimento.','warn');
+      if(btn){btn.disabled=false;btn.innerHTML='Confirmar Decisao';}
+      return;
+    }
+    if(esclTipos.includes('Outros')){
+      esclOutros=(document.getElementById('portal-outros-desc')||{}).value||'';
+    }
+  }
+
+  if(decisao==='Aprovado'){
+    var ocFile=document.getElementById('portal-oc-file');
+    var file=ocFile&&ocFile.files&&ocFile.files[0];
+    if(file){
+      ocData=await new Promise(function(resolve){
+        var rd=new FileReader();
+        rd.onload=function(e){resolve(e.target.result);};
+        rd.readAsDataURL(file);
+      });
+      ocNome=file.name;
+    }
+  }
+
+  // Gravar em caso_aprovacoes
+  var r=await dbAnonIns('caso_aprovacoes',{
+    caso_id:cir.caso_id,
+    cirurgia_id:lk.cirurgia_id,
+    link_token:lk.token,
+    tipo:decisao==='Aprovado'?'autorizar_faturamento':decisao==='Recusado'?'recusar_faturamento':'pedido_esclarecimento',
+    observacao:decisao,
+    aprovado_por:lk.destinatario_nome,
+    decisao:decisao,
+    decisao_em:new Date().toISOString(),
+    recusa_razao:recusaRazao||null,
+    esclarecimento_tipos:esclTipos.length?esclTipos:null,
+    esclarecimento_outros:esclOutros||null,
+    doc_tipo:ocNome?'Ordem de Compra':null,
+    doc_nome:ocNome||null,
+    doc_data:ocData||null
+  });
+
+  if(r.error){
+    showAlert('Erro ao registrar: '+r.error.message,'danger');
+    if(btn){btn.disabled=false;btn.innerHTML='Confirmar Decisao';}
+    return;
+  }
+
+  // Atualizar status da cirurgia
+  var novoStatus=decisao==='Aprovado'?'Faturamento Autorizado':decisao==='Recusado'?'Cobranca Recusada':'Pedido de Esclarecimento';
+  await dbAnonUpd('cirurgias',{status:novoStatus},{id:cir.id});
+
+  var msg=decisao==='Aprovado'?'Faturamento aprovado com sucesso!':decisao==='Recusado'?'Recusa registrada.':'Pedido de esclarecimento registrado.';
+  showAlert(msg,'success');
+  setTimeout(function(){renderPortalDevedor(token);},1500);
+}
+
 async function registrarAprovacaoComDoc(lk,cir,token,obs,tipoDoc){
   var btn=document.getElementById('btn-portal-confirmar');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Enviando...';}
@@ -4093,25 +4244,11 @@ async function registrarAprovacaoComDoc(lk,cir,token,obs,tipoDoc){
     return;
   }
 
-  // 2. Atualizar status da cirurgia para "autorizado" (Faturamento Autorizado)
-  // Tenta com anon key — precisa de RLS policy para anon UPDATE em cirurgias
-  var rUpd=await dbAnonUpd('cirurgias',{status:'autorizado'},{id:cir.id});
+  // 2. Atualizar status da cirurgia para "Faturamento Autorizado"
+  var rUpd=await dbAnonUpd('cirurgias',{status:'Faturamento Autorizado'},{id:cir.id});
   if(rUpd.error){
-    // Fallback: tentar via REST direto com service key não disponível no browser
-    // O admin verá a aprovação e poderá atualizar manualmente
     console.warn('Status nao atualizado automaticamente (RLS):', rUpd.error.message);
   }
-
-  // 3. Gravar mensagem automática no chat
-  await dbAnonIns('caso_mensagens',{
-    caso_id:cir.caso_id,
-    cirurgia_id:lk.cirurgia_id,
-    autor_tipo:'devedor',
-    autor_nome:lk.destinatario_nome,
-    link_token:lk.token,
-    mensagem:'AUTORIZACAO DE FATURAMENTO REGISTRADA | Documento: '+tipoDoc+(docNome?' ('+docNome+')':'')+(obs?' | Obs: '+obs:''),
-    lida:false
-  });
 
   showAlert('Autorizacao registrada! Status da cirurgia atualizado para Faturamento Autorizado.','success');
   setTimeout(function(){renderPortalDevedor(token);},1500);
