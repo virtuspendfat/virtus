@@ -589,7 +589,7 @@ const matTot=arr=>(arr||[]).reduce((s,m)=>s+parseFloat(m.vTotal||0),0);
 
 const emptyMat=()=>({_id:uid(),ref:'',desc:'',qty:1,vUnit:'',vTotal:''});
 const emptyAtv=()=>({_id:uid(),tipo:'E-mail',data:'',horario:'',duracao:'',contato:'',telefone:'',email:'',registro:'',proximo_passo:'',data_proximo:'',anexos:[]});
-const emptyCir=()=>({paciente:'',medico:'',hospital_id:'',operadora_id:'',data_cirurgia:'',especialidade:'',procedimento:'',origem:'Opmenexo',status:'Aguardando Autorizacao de Faturamento',obs:'',fonte_pagadora:'',id_cotacao_portal:'',responsavel_id:'',caso_id:'',mat_orcado:[emptyMat()],mat_autorizado:[emptyMat()],mat_utilizado:[emptyMat()],mat_fat_autorizado:[emptyMat()],mat_faturado:[emptyMat()],resp_orcado:[],resp_autorizado:[],resp_utilizado:[],resp_fat_autorizado:[],resp_faturado:[],evidencias_pre:[],evidencias_pos:[],atividades:[]});
+const emptyCir=()=>({paciente:'',medico:'',hospital_id:'',operadora_id:'',data_cirurgia:'',especialidade:'',procedimento:'',origem:'Opmenexo',status:'Aguardando Autorizacao de Faturamento',obs:'',fonte_pagadora:'',id_cotacao_portal:'',responsavel_id:'',caso_id:'',mat_orcado:[emptyMat()],mat_autorizado:[emptyMat()],mat_utilizado:[emptyMat()],mat_fat_autorizado:[emptyMat()],mat_faturado:[emptyMat()],resp_orcado:[],resp_autorizado:[],resp_utilizado:[],resp_fat_autorizado:[],resp_faturado:[],evidencias_pre:[],evidencias_pos:[],atividades:[],historico_encerramento:[]});
 const emptyDev=()=>({razao_social:'',cnpj:'',tipo:'Hospital',endereco:'',cidade:'',uf:'',cep:'',telefones:'',emails:'',obs:'',contatos:[]});
 const emptyCnt=()=>({_id:uid(),nome:'',departamento:'Faturamento',nivel:'Analista',telefone:'',email:''});
 
@@ -874,6 +874,7 @@ async function loadData(){
       evidencias_pre:pJ(c.evidencias_pre),
       evidencias_pos:pJ(c.evidencias_pos),
       atividades:pJ(c.atividades),
+      historico_encerramento:pJ(c.historico_encerramento),
       responsaveis:resp,
       resp_orcado:getResp('orcado'),
       resp_autorizado:getResp('autorizado'),
@@ -2119,7 +2120,31 @@ function buildEvid(){
     +secao('&#128100;&nbsp; Anexos do Cliente (Devedor) ('+(anexosDevedor.length)+')','#f5f0fa',
         anexosHtml)
     +secao('&#9989;&nbsp; Decisão do Devedor','var(--sf2)',
-        (decisaoHtml||'<div style="font-size:12px;color:var(--tx3);padding:6px 0;font-style:italic">Nenhuma decisão registrada ainda.</div>'));
+        (decisaoHtml||'<div style="font-size:12px;color:var(--tx3);padding:6px 0;font-style:italic">Nenhuma decisão registrada ainda.</div>'))
+    +secao('&#128203;&nbsp; Histórico de Encerramento ('+(CF.historico_encerramento||[]).length+')','#f0f4ff',
+        buildHistEnc());
+}
+
+function buildHistEnc(){
+  var hist=(CF.historico_encerramento||[]);
+  if(!hist.length)return '<div style="font-size:12px;color:var(--tx3);padding:6px 0;font-style:italic">Nenhum encerramento registrado ainda.</div>';
+  return hist.slice().reverse().map(function(h){
+    var comPend=h.tipo==='com_pendencia';
+    var cor=comPend?'var(--am)':'var(--gn)';
+    var bg=comPend?'var(--am2)':'var(--gn2)';
+    var ico=comPend?'&#9888;':'&#9989;';
+    return '<div style="padding:12px 16px;background:'+bg+';border-radius:var(--r2);border-left:4px solid '+cor+';margin-bottom:8px">'
+      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
+      +'<span style="font-size:14px">'+ico+'</span>'
+      +'<span style="font-size:12px;font-weight:700;color:'+cor+'">'+esc(h.descricao)+'</span>'
+      +'</div>'
+      +(comPend&&h.saldo?'<div style="font-size:11px;color:var(--tx2);margin-bottom:4px">Saldo declarado encerrado: <strong>'+fmt$(h.saldo)+'</strong></div>':'')
+      +'<div style="font-size:10px;color:var(--tx3)">'
+      +new Date(h.ts).toLocaleString('pt-BR')
+      +' &nbsp;|&nbsp; Responsável: <strong>'+esc(h.usuario)+'</strong>'
+      +'</div>'
+      +'</div>';
+  }).join('');
 }
 function rmEv(fase,i){if(fase==='pre')CF.evidencias_pre.splice(i,1);else CF.evidencias_pos.splice(i,1);renderMCir();}
 function hdEv(fase,input){
@@ -2346,6 +2371,41 @@ function rmAtvAnx(ai,ji){if(CF.atividades[ai])CF.atividades[ai].anexos.splice(ji
 function closeMCir(){var w=document.getElementById('mcir-wrap');if(w)w.innerHTML='';}
 async function saveCir(){
   if(!CF.paciente){var e=document.getElementById('cerr');if(e)e.innerHTML='<div class="alert al-d">Nome do paciente obrigatorio.</div>';return;}
+
+  // ── Verificação de Processo Concluido com saldo pendente ──
+  if(CF.status==='Processo Concluido'){
+    var util=matTot(CF.mat_utilizado||[]);
+    var fat=matTot(CF.mat_faturado||[]);
+    var saldoPend=Math.max(0,util-fat);
+    if(saldoPend>0.01){
+      var msg='Há saldo pendente de faturamento de '+fmt$(saldoPend)+'.\n\n'
+        +'Ao prosseguir você declara que foram encerradas as tratativas para esta cirurgia. '
+        +'Os itens pendentes de faturamento deixarão de constar nos relatórios de cobrança '
+        +'para a fonte pagadora até que o status seja modificado para pendente de faturamento novamente.\n\n'
+        +'Deseja prosseguir?';
+      if(!confirm(msg))return;
+      // Registrar encerramento com pendência
+      if(!Array.isArray(CF.historico_encerramento))CF.historico_encerramento=[];
+      CF.historico_encerramento.push({
+        tipo:'com_pendencia',
+        descricao:'Processo concluido com saldo a faturar',
+        saldo:saldoPend,
+        usuario:(S.user&&S.user.email)||'--',
+        ts:new Date().toISOString()
+      });
+    } else {
+      // Registrar encerramento sem pendência
+      if(!Array.isArray(CF.historico_encerramento))CF.historico_encerramento=[];
+      CF.historico_encerramento.push({
+        tipo:'sem_pendencia',
+        descricao:'Processo concluido sem pendencias de faturamento',
+        saldo:0,
+        usuario:(S.user&&S.user.email)||'--',
+        ts:new Date().toISOString()
+      });
+    }
+  }
+
   var btn=document.getElementById('bsc');btn.innerHTML='<span class="spin"></span> Gravando...';btn.disabled=true;
   try{
     // Não sobrescrever resp_* — é histórico, já foi gerenciado por addSolicitante()
@@ -2404,6 +2464,7 @@ async function saveCir(){
     delete payload._msgs;
     delete payload._msgsBadge;
     delete payload._anexosDev;
+    // historico_encerramento é persistido no banco (coluna jsonb)
     var res;
     if(payload.id){res=await DB.upd('cirurgias',payload,{id:payload.id});}
     else{var{id,...ins}=payload;res=await DB.ins('cirurgias',ins);}
@@ -3506,6 +3567,7 @@ function renderRel(){
       +'<td>'+esc(h.razao_social||'--')+'</td>'
       +'<td>'+esc(o.razao_social||'--')+'</td>'
       +'<td>'+esc(c.fonte_pagadora||'--')+'</td>'
+      +'<td style="font-family:monospace;font-size:11px">'+esc(c.id_cotacao_portal||'--')+'</td>'
       +'<td style="white-space:nowrap">'+fmtD(c.data_cirurgia)+'</td>'
       +'<td style="font-weight:700;text-align:right;color:'+(pend>0?'var(--rd)':'var(--gn)')+'">'+fmt$(pend)+'</td>'
       +'</tr>';
@@ -3548,11 +3610,11 @@ function renderRel(){
     +'<div class="c-hd">Relatorio Analitico ('+cirs.length+' registros)</div>'
     +'<div class="tbl-wrap"><table><thead><tr>'
     +'<th>Caso</th><th>Paciente</th><th>Medico</th><th>Hospital</th><th>Operadora</th>'
-    +'<th>Fonte Pagadora</th><th>Data Cirurgia</th><th style="text-align:right">Vl. Pendente</th>'
+    +'<th>Fonte Pagadora</th><th>ID Cotacao</th><th>Data Cirurgia</th><th style="text-align:right">Vl. Pendente</th>'
     +'</tr></thead><tbody>'
     +rows
     +'<tr style="background:var(--sf2);font-weight:700">'
-    +'<td colspan="7" style="text-align:right;color:var(--tx2)">TOTAL FILTRADO</td>'
+    +'<td colspan="8" style="text-align:right;color:var(--tx2)">Total Pendente</td>'
     +'<td style="text-align:right;color:var(--rd);font-size:14px">'+fmt$(totalFiltrado)+'</td>'
     +'</tr></tbody></table></div></div>'
   );
@@ -3593,7 +3655,7 @@ function groupBy(k){
 }
 
 function exportRelXLS(cirs){
-  var header=['Caso','Paciente','Medico','Hospital','Operadora','Fonte Pagadora','Data Cirurgia','Status','Vl.Utilizado','Vl.Faturado','Vl.Pendente'];
+  var header=['Caso','Paciente','Medico','Hospital','Operadora','Fonte Pagadora','ID Cotacao','Data Cirurgia','Status','Vl.Utilizado','Vl.Faturado','Vl.Pendente'];
   var lines=[header.join(';')];
   cirs.forEach(function(c){
     var h=S.devs.find(function(d){return d.id===c.hospital_id;})||{};
@@ -3602,7 +3664,7 @@ function exportRelXLS(cirs){
     var fat=matTot(c.mat_faturado);
     var pend=Math.max(0,util-fat);
     lines.push([c.caso_id||'',c.paciente||'',c.medico||'',h.razao_social||'',o.razao_social||'',
-      c.fonte_pagadora||'',fmtD(c.data_cirurgia),c.status||'',
+      c.fonte_pagadora||'',c.id_cotacao_portal||'',fmtD(c.data_cirurgia),c.status||'',
       util.toFixed(2).replace('.',','),fat.toFixed(2).replace('.',','),pend.toFixed(2).replace('.',',')
     ].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(';'));
   });
@@ -3629,6 +3691,7 @@ function exportRelPDF(cirs,totalPendente,qtdPendente){
       +'<td>'+esc(h.razao_social||'--')+'</td>'
       +'<td>'+esc(o.razao_social||'--')+'</td>'
       +'<td>'+esc(c.fonte_pagadora||'--')+'</td>'
+      +'<td style="font-family:monospace;font-size:9px">'+esc(c.id_cotacao_portal||'--')+'</td>'
       +'<td style="white-space:nowrap">'+fmtD(c.data_cirurgia)+'</td>'
       +'<td style="font-weight:700;text-align:right;color:'+cor+'">'+fmt$(pend)+'</td></tr>';
   }).join('');
@@ -3665,9 +3728,9 @@ function exportRelPDF(cirs,totalPendente,qtdPendente){
     +'</div>'
     +(filtAtivos?'<div class="filt">Filtros: '+filtAtivos+'</div>':'')
     +'<table><thead><tr><th>Caso</th><th>Paciente</th><th>Medico</th><th>Hospital</th><th>Operadora</th>'
-    +'<th>Fonte Pagadora</th><th>Data</th><th style="text-align:right">Vl. Pendente</th></tr></thead>'
+    +'<th>Fonte Pagadora</th><th>ID Cotacao</th><th>Data</th><th style="text-align:right">Vl. Pendente</th></tr></thead>'
     +'<tbody>'+rows+'</tbody>'
-    +'<tfoot><tr><td colspan="7" style="text-align:right;color:#3d8a74;padding:8px">TOTAL FILTRADO</td>'
+    +'<tfoot><tr><td colspan="8" style="text-align:right;color:#3d8a74;padding:8px">Total Pendente</td>'
     +'<td style="text-align:right;color:#e53935;font-size:13px;padding:8px">'+fmt$(totalFiltrado)+'</td></tr></tfoot>'
     +'</table><div class="foot">Virtus — Sistema de Gestao de Faturamento Medico | Documento confidencial</div>'
     +'</body></html>');
