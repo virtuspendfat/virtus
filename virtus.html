@@ -584,6 +584,12 @@ function applyDateMasks(){
 }
 const uid=()=>(Date.now().toString(36)+Math.random().toString(36).slice(2));
 const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function fmtEscl(str){
+  if(!str)return '';
+  return str.split(' | ').map(function(p){
+    return '<span style="display:inline-block;background:var(--am2);color:var(--am);border:1px solid var(--am);border-radius:20px;font-size:10px;font-weight:700;padding:2px 9px;margin:2px 3px 2px 0">'+esc(p.trim())+'</span>';
+  }).join('');
+}
 const pJ=v=>{if(Array.isArray(v))return v;try{return JSON.parse(v)||[];}catch(e){return[];}};
 const matTot=arr=>(arr||[]).reduce((s,m)=>s+parseFloat(m.vTotal||0),0);
 
@@ -1310,8 +1316,8 @@ function renderAprovacoesCobrador(){
         // Esclarecimentos solicitados
         +((a.esclarecimento_outros||a.esclarecimento_tipos)
           ?'<div style="font-size:12px;background:rgba(255,255,255,.5);border-radius:var(--r);padding:8px 12px;margin-bottom:8px">'
-            +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+cor+';margin-bottom:4px">Esclarecimentos Solicitados</div>'
-            +'<div style="color:var(--tx)">'+esc(a.esclarecimento_outros||a.esclarecimento_tipos||'')+'</div>'
+            +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+cor+';margin-bottom:6px">Esclarecimentos Solicitados</div>'
+            +'<div>'+fmtEscl(a.esclarecimento_outros||a.esclarecimento_tipos||'')+'</div>'
             +'</div>'
           :'')
         // Documento OC anexado
@@ -2081,7 +2087,9 @@ function buildEvid(){
       +'<div style="font-size:13px;font-weight:700;color:'+dCor+'">'+esc(decisao.decisao)+'</div>'
       +'<div style="font-size:11px;color:var(--tx3);margin-top:3px">Por: '+esc(decisao.aprovado_por)+' — '+new Date(decisao.aprovado_em||decisao.decisao_em||Date.now()).toLocaleString('pt-BR')+'</div>'
       +(decisao.recusa_razao?'<div style="font-size:12px;color:var(--tx2);margin-top:6px"><strong>Razão:</strong> '+esc(decisao.recusa_razao)+'</div>':'')
-      +(decisao.esclarecimento_outros||decisao.esclarecimento_tipos?'<div style="font-size:12px;color:var(--tx2);margin-top:6px"><strong>Esclarecimentos solicitados:</strong> '+esc(decisao.esclarecimento_outros||decisao.esclarecimento_tipos||'')+'</div>':'')
+      +(decisao.esclarecimento_outros||decisao.esclarecimento_tipos
+        ?'<div style="font-size:12px;color:var(--tx2);margin-top:8px"><strong>Esclarecimentos solicitados:</strong><div style="margin-top:5px">'+fmtEscl(decisao.esclarecimento_outros||decisao.esclarecimento_tipos||'')+'</div></div>'
+        :'')
       +'</div>';
   }
 
@@ -4263,7 +4271,9 @@ function renderPortalUI(lk,cir,hosp,oper,aprovs,anexosDev,token){
         +'<div style="font-size:13px;font-weight:700;color:'+cor+'">'+esc(label)+'</div>'
         +'<div style="font-size:11px;color:var(--tx3);margin-top:3px">'+esc(a.aprovado_por)+' — '+new Date(a.aprovado_em||a.decisao_em||Date.now()).toLocaleDateString('pt-BR')+'</div>'
         +(a.recusa_razao?'<div style="font-size:12px;color:var(--tx2);margin-top:6px"><strong>Razão:</strong> '+esc(a.recusa_razao)+'</div>':'')
-        +(a.esclarecimento_outros||a.esclarecimento_tipos?'<div style="font-size:12px;color:var(--tx2);margin-top:4px"><strong>Esclarecimentos:</strong> '+esc(a.esclarecimento_outros||a.esclarecimento_tipos||'')+'</div>':'')
+        +(a.esclarecimento_outros||a.esclarecimento_tipos
+          ?'<div style="font-size:12px;color:var(--tx2);margin-top:6px"><strong>Esclarecimentos solicitados:</strong><div style="margin-top:5px">'+fmtEscl(a.esclarecimento_outros||a.esclarecimento_tipos||'')+'</div></div>'
+          :'')
         +(a.doc_nome&&a.doc_data?'<div style="margin-top:8px;display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.5);border-radius:var(--r)"><span>&#128196;</span><span style="font-size:12px;font-weight:600">'+esc(a.doc_nome)+'</span><a href="'+a.doc_data+'" download="'+esc(a.doc_nome)+'" style="margin-left:auto;font-size:11px;color:var(--tl);font-weight:700;text-decoration:none;padding:3px 8px;border:1px solid var(--tl4);border-radius:4px">&#11015;</a></div>':'')
         +'</div>';
     }).join('');
@@ -4622,7 +4632,8 @@ async function registrarDecisaoPortal(lk,cir,token){
     decisao:decisao,
     decisao_em:new Date().toISOString(),
     recusa_razao:recusaRazao||null,
-    esclarecimento_outros:esclOutros||null,
+    // Gravar tipos selecionados + descrição livre juntos em esclarecimento_outros
+    esclarecimento_outros:(esclTiposStr&&esclOutros)?(esclTiposStr+' — '+esclOutros):(esclTiposStr||esclOutros||null),
     doc_tipo:ocNome?'Ordem de Compra':null,
     doc_nome:ocNome||null,
     doc_data:null
