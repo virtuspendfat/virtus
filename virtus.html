@@ -1279,24 +1279,42 @@ function renderAprovacoesCobrador(){
   return '<div class="c-hd" style="margin-top:8px">Documentos Recebidos ('+aprovs.length+')</div>'
     +'<div style="margin-bottom:16px">'
     +aprovs.map(function(a){
-      var bg=a.tipo==='solicitar_ajuste'?'var(--am2)':'var(--gn2)';
-      var cor=a.tipo==='solicitar_ajuste'?'var(--am)':'var(--gn)';
-      var tipoLabel={
-        autorizar_faturamento:'Faturamento Autorizado',
-        solicitar_ajuste:'Ajuste Solicitado',
-        aprovar_valores:'Valores Aprovados'
-      }[a.tipo]||a.tipo;
-      return '<div style="padding:14px;background:'+bg+';border-radius:var(--r2);margin-bottom:10px;border-left:4px solid '+cor+'">'
-        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
-        +'<div>'
-        +'<span style="font-size:13px;font-weight:700;color:'+cor+'">'+tipoLabel+'</span>'
-        +(a.doc_tipo?'<span style="font-size:11px;font-weight:600;background:'+cor+';color:#fff;padding:1px 8px;border-radius:10px;margin-left:8px">'+esc(a.doc_tipo)+'</span>':'')
+      // Usar campo decisao (V8) com fallback para tipo legado
+      var dec=a.decisao||a.tipo||'';
+      var isAprov=dec==='Aprovado'||dec==='autorizar_faturamento';
+      var isRec=dec==='Recusado'||dec==='recusar_faturamento';
+      var isEscl=dec==='Pedido de Esclarecimento'||dec==='pedido_esclarecimento';
+      var cor=isAprov?'var(--gn)':isRec?'var(--rd)':'var(--am)';
+      var bg=isAprov?'var(--gn2)':isRec?'var(--rd2)':'var(--am2)';
+      var label=isAprov?'Faturamento Autorizado':isRec?'Faturamento Recusado':isEscl?'Pedido de Esclarecimento':dec;
+      var ico=isAprov?'&#9989;':isRec?'&#10060;':'&#10067;';
+      return '<div style="padding:14px 16px;background:'+bg+';border-radius:var(--r2);margin-bottom:10px;border-left:4px solid '+cor+'">'
+        // Cabeçalho
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'
+        +'<div style="display:flex;align-items:center;gap:7px">'
+        +'<span style="font-size:15px">'+ico+'</span>'
+        +'<span style="font-size:13px;font-weight:700;color:'+cor+'">'+label+'</span>'
+        +(a.doc_tipo?'<span style="font-size:10px;font-weight:600;background:'+cor+';color:#fff;padding:1px 8px;border-radius:10px">'+esc(a.doc_tipo)+'</span>':'')
         +'</div>'
-        +'<span style="font-size:10px;color:var(--tx3)">'+new Date(a.aprovado_em).toLocaleString('pt-BR')+'</span>'
+        +'<span style="font-size:10px;color:var(--tx3)">'+new Date(a.aprovado_em||a.decisao_em||Date.now()).toLocaleString('pt-BR')+'</span>'
         +'</div>'
-        +'<div style="font-size:12px;color:var(--tx2);margin-bottom:6px">Por: <strong>'+esc(a.aprovado_por)+'</strong></div>'
-        +(a.observacao?'<div style="font-size:12px;color:var(--tx2);margin-bottom:8px">Obs: '+esc(a.observacao)+'</div>':'')
-        // Documento anexado
+        // Por quem
+        +'<div style="font-size:12px;color:var(--tx2);margin-bottom:8px">Por: <strong>'+esc(a.aprovado_por||'--')+'</strong></div>'
+        // Razão da recusa
+        +(a.recusa_razao
+          ?'<div style="font-size:12px;background:rgba(255,255,255,.5);border-radius:var(--r);padding:8px 12px;margin-bottom:8px">'
+            +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+cor+';margin-bottom:4px">Razão da Recusa</div>'
+            +'<div style="color:var(--tx)">'+esc(a.recusa_razao)+'</div>'
+            +'</div>'
+          :'')
+        // Esclarecimentos solicitados
+        +((a.esclarecimento_outros||a.esclarecimento_tipos)
+          ?'<div style="font-size:12px;background:rgba(255,255,255,.5);border-radius:var(--r);padding:8px 12px;margin-bottom:8px">'
+            +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+cor+';margin-bottom:4px">Esclarecimentos Solicitados</div>'
+            +'<div style="color:var(--tx)">'+esc(a.esclarecimento_outros||a.esclarecimento_tipos||'')+'</div>'
+            +'</div>'
+          :'')
+        // Documento OC anexado
         +(a.doc_nome&&a.doc_data
           ?'<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(255,255,255,.6);border-radius:var(--r);border:1px solid rgba(0,0,0,.1)">'
             +'<span style="font-size:18px">&#128196;</span>'
