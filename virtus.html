@@ -3778,11 +3778,11 @@ async function renderPortalDevedor(token){
   var oper=devsArr.find(function(d){return d.id===cir.operadora_id;});
 
   // Buscar aprovacoes existentes (anon)
-  var ra=await dbAnonSel('caso_aprovacoes',{cirurgia_id:lk.cirurgia_id});
+  var ra=await dbAnonSel('caso_aprovacoes',{cirurgia_id:lk.cirurgia_id},'aprovado_em.desc');
   var aprovs=ra.data||[];
 
   // Buscar anexos do devedor
-  var ran=await dbAnonSel('caso_anexos_devedor',{cirurgia_id:lk.cirurgia_id});
+  var ran=await dbAnonSel('caso_anexos_devedor',{cirurgia_id:lk.cirurgia_id},'created_at.asc');
   var anexosDev=ran.data||[];
 
   // Renderizar portal
@@ -4137,12 +4137,14 @@ async function dbAnonUpd(tabela,dados,filtro){
 }
 
 // Helper para selecionar anônimo
-async function dbAnonSel(tabela,filtros){
+async function dbAnonSel(tabela,filtros,ordem){
   try{
     var params='select=*&'+Object.entries(filtros).map(function(e){
       return e[0]+'=eq.'+encodeURIComponent(e[1]);
     }).join('&');
-    var r=await fetch(DB.url+'/rest/v1/'+tabela+'?'+params+'&order=created_at.asc',{
+    // ordem opcional — só adicionar se a tabela tiver a coluna
+    var orderStr=ordem?('&order='+ordem):'';
+    var r=await fetch(DB.url+'/rest/v1/'+tabela+'?'+params+orderStr,{
       headers:{'apikey':DB.key,'Authorization':'Bearer '+DB.key}
     });
     var d=await r.json();
