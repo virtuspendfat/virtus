@@ -3895,9 +3895,34 @@ function renderPortalUI(lk,cir,hosp,oper,aprovs,anexosDev,token){
   }
 
   // ── Materiais ────────────────────────────────────────────
-  function buildMatSection(items,label,total){
+  // Renderiza bloco de solicitantes de uma fase
+  function renderSolicitantes(respArr){
+    var arr=[];
+    if(Array.isArray(respArr)){
+      arr=respArr.filter(function(r){return r&&(r.sol||r.nome);});
+    }
+    if(!arr.length)return '';
+    return '<div style="margin-top:10px;padding:10px 12px;background:var(--sf2);border-radius:var(--r);border-left:3px solid var(--tl4)">'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--tl);margin-bottom:6px">Solicitante(s)</div>'
+      +arr.map(function(r){
+        var nome=r.sol||r.nome||'--';
+        var tel=r.tel||r.telefone||'';
+        var email=r.email||'';
+        var data=r.data||r.ts?new Date(r.data||r.ts).toLocaleDateString('pt-BR'):'';
+        return '<div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:11px;color:var(--tx2);padding:4px 0;border-bottom:1px solid var(--bd)">'
+          +'<span><strong style="color:var(--tx)">'+esc(nome)+'</strong></span>'
+          +(tel?'<span>&#128222; '+esc(tel)+'</span>':'')
+          +(email?'<span>&#9993; '+esc(email)+'</span>':'')
+          +(data?'<span style="margin-left:auto;color:var(--tx3)">'+data+'</span>':'')
+          +'</div>';
+      }).join('')
+      +'</div>';
+  }
+
+  function buildMatSection(items,label,total,respArr){
     var rows=(items||[]).filter(function(m){return m.ref||m.desc;});
-    if(!rows.length)return '<p style="font-size:12px;color:var(--tx3)">Sem itens registrados.</p>';
+    var respHtml=renderSolicitantes(respArr);
+    if(!rows.length)return (respHtml||'<p style="font-size:12px;color:var(--tx3)">Sem itens registrados.</p>')+respHtml;
     return '<table style="width:100%;border-collapse:collapse;font-size:12px">'
       +'<thead><tr style="border-bottom:2px solid var(--tl4)">'
       +'<th style="text-align:left;padding:6px;color:var(--tl)">Ref</th>'
@@ -3921,7 +3946,8 @@ function renderPortalUI(lk,cir,hosp,oper,aprovs,anexosDev,token){
       +'<td colspan="4" style="padding:8px;text-align:right;color:var(--tl)">TOTAL '+label+'</td>'
       +'<td style="padding:8px;text-align:right;color:var(--tl);font-size:15px">'+fmt$(total)+'</td>'
       +'</tr></tfoot>'
-      +'</tbody></table>';
+      +'</tbody></table>'
+      +respHtml;
   }
 
   // ── Chat ─────────────────────────────────────────────────
@@ -3982,6 +4008,9 @@ function renderPortalUI(lk,cir,hosp,oper,aprovs,anexosDev,token){
     +'<div><span style="color:var(--tx3)">ID Cotacao Portal:</span> <strong style="font-family:monospace">'+esc(cir.id_cotacao_portal||'--')+'</strong></div>'
     +'<div style="grid-column:1/-1"><span style="color:var(--tx3)">Status:</span> <span style="background:var(--am2);color:var(--am);padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700">'+esc(STATUS[cir.status]||cir.status)+'</span></div>'
     +'</div>'
+    +'<div style="display:flex;justify-content:flex-end;margin-top:14px;padding-top:12px;border-top:1px solid var(--bd)">'
+    +'<button id="btn-portal-compartilhar" style="display:flex;align-items:center;gap:6px;padding:8px 16px;background:var(--tl);color:#fff;border:none;border-radius:var(--r2);font-size:12px;font-weight:700;cursor:pointer">&#128279; Compartilhar Dossie</button>'
+    +'</div>'
     +'</div>'
 
     // ── BLOCO 2: Resumo de valores ───────────────────────────
@@ -4005,11 +4034,15 @@ function renderPortalUI(lk,cir,hosp,oper,aprovs,anexosDev,token){
     +'</div>'
 
     // ── BLOCO 3: Materiais por fase ──────────────────────────
-    +(tO>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F1 — Materiais Orcados</div>'+buildMatSection(cir.mat_orcado,'F1',tO)+'</div>':'')
-    +(tA>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F2 — Materiais Autorizados</div>'+buildMatSection(cir.mat_autorizado,'F2',tA)+'</div>':'')
-    +(tU>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F3 — Materiais Utilizados</div>'+buildMatSection(cir.mat_utilizado,'F3',tU)+'</div>':'')
-    +(tF4>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F4 — Faturamento Autorizado</div>'+buildMatSection(cir.mat_fat_autorizado,'F4',tF4)+'</div>':'')
-    +(tF>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F5 — Materiais Faturados</div>'+buildMatSection(cir.mat_faturado,'F5',tF)+'</div>':'')
+    // Extrair resp_* — podem estar em campos diretos ou dentro do _meta de mat_orcado
+    var _meta=(cir.mat_orcado||[]).find(function(m){return m&&m._meta;});
+    var _rmap=(_meta&&_meta._responsaveis)||{};
+    function getR(k){return cir['resp_'+k]||_rmap[k]||[];}
+    +(tO>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F1 — Materiais Orcados</div>'+buildMatSection(cir.mat_orcado,'F1',tO,getR('orcado'))+'</div>':'')
+    +(tA>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F2 — Materiais Autorizados</div>'+buildMatSection(cir.mat_autorizado,'F2',tA,getR('autorizado'))+'</div>':'')
+    +(tU>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F3 — Materiais Utilizados</div>'+buildMatSection(cir.mat_utilizado,'F3',tU,getR('utilizado'))+'</div>':'')
+    +(tF4>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F4 — Faturamento Autorizado</div>'+buildMatSection(cir.mat_fat_autorizado,'F4',tF4,getR('fat_autorizado'))+'</div>':'')
+    +(tF>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F5 — Materiais Faturados</div>'+buildMatSection(cir.mat_faturado,'F5',tF,getR('faturado'))+'</div>':'')
 
     // ── BLOCO 4: Evidências ──────────────────────────────────
     +((cir.evidencias_pre&&cir.evidencias_pre.length)||(cir.evidencias_pos&&cir.evidencias_pos.length)
@@ -4102,6 +4135,25 @@ function renderPortalUI(lk,cir,hosp,oper,aprovs,anexosDev,token){
 
   // ── Binds ────────────────────────────────────────────────
   setTimeout(function(){
+    // Bind botão Compartilhar Dossie
+    var btnComp=document.getElementById('btn-portal-compartilhar');
+    if(btnComp)btnComp.onclick=function(){
+      var url=window.location.href;
+      if(navigator.share){
+        navigator.share({title:'Dossie Virtus — '+esc(cir.paciente||'Cirurgia'),url:url});
+      } else if(navigator.clipboard){
+        navigator.clipboard.writeText(url).then(function(){
+          btnComp.innerHTML='&#10003; Link Copiado!';
+          setTimeout(function(){btnComp.innerHTML='&#128279; Compartilhar Dossie';},2000);
+        });
+      } else {
+        var ta=document.createElement('textarea');
+        ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+        btnComp.innerHTML='&#10003; Link Copiado!';
+        setTimeout(function(){btnComp.innerHTML='&#128279; Compartilhar Dossie';},2000);
+      }
+    };
+
     // Mostrar/ocultar campos conforme decisão selecionada
     document.querySelectorAll('input[name="portal-decisao"]').forEach(function(radio){
       radio.onchange=function(){
