@@ -645,7 +645,7 @@ function renderSetup(err){
         +'<a href="#" id="link-forgot" style="font-size:11px;color:var(--tl)">Esqueci minha senha</a></div>'
         +'<button class="btn btn-p" id="btn-login" style="width:100%;justify-content:center;padding:11px;font-size:14px;font-weight:600">Entrar</button>'
         +'<div style="margin-top:14px;text-align:center">'
-        +'<a href="#" id="link-reconfig" style="font-size:11px;color:var(--tx3)">Reconfigurar banco de dados</a>'
+
         +'</div></div>'
       // Se não tem conexão, mostrar config do banco
       : '<div id="config-block">'
@@ -914,7 +914,7 @@ function renderApp(){
     +'<div class="sb-logo"><span style="font-family:Poppins,system-ui,sans-serif;font-size:22px;font-weight:800;color:var(--tl);letter-spacing:-0.5px">Virtus</span></div>'
     +'<nav class="sb-nav"><div class="sb-section">Principal</div>'+navH
     +'<div class="sb-section">Sistema</div>'
-    +'<div class="sb-item" onclick="localStorage.clear();location.reload()"><span class="sb-ico">[X]</span>Reconfigurar BD</div>'
+
     +'</nav>'+'<div class="sb-foot" style="padding:12px">'+'<div style="background:var(--tl3);border:1.5px solid var(--tl4);border-radius:10px;padding:12px;margin-bottom:10px;box-shadow:0 2px 8px rgba(61,138,116,.15)">'+'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tl);margin-bottom:5px">Logado como</div>'+'<div style="font-size:13px;font-weight:700;color:var(--tx)">'+(S.user?esc(S.user.nome):'--')+'</div>'+'<div style="font-size:11px;color:var(--tx3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(S.user?esc(S.user.email):'')+'</div>'+'<div style="margin-top:7px">'+'<span style="background:var(--tl);color:#fff;font-size:9px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.5px">'+(S.user?S.user.perfil.toUpperCase():'')+'</span>'+'</div>'+'</div>'+'<button data-action="logout" style="width:100%;background:var(--sf);border:1.5px solid var(--bd);color:var(--tx2);border-radius:8px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s">&#x2192; Sair do Sistema</button>'+'<div style="font-size:9px;color:var(--tx3);text-align:center;margin-top:8px">Virtus v4.0 | GitHub Pages</div>'+'</div></div>'
     +'<div class="main">'
     +'<div class="topbar">'
@@ -1812,9 +1812,13 @@ function renderMCir(){
     +'<div class="tabs">'+tabsH+'</div>'+body+'</div>'
     +'<div class="modal-ft">'
     +'<button class="btn btn-s" onclick="closeMCir()">Cancelar</button>'
+    +(CF.id?'<button class="btn btn-s" id="btn-open-dos" style="display:flex;align-items:center;gap:5px">&#128196; Visualizar Dossie</button>':'')
     +'<button class="btn btn-p" id="bsc">Gravar Cirurgia</button>'
     +'</div></div></div>';
-  document.getElementById('bsc').onclick=saveCir;
+  var bscEl=document.getElementById('bsc');
+  if(bscEl)bscEl.onclick=saveCir;
+  var btnDos=document.getElementById('btn-open-dos');
+  if(btnDos)btnDos.onclick=function(){closeMCir();setTimeout(function(){openDos(CF.id);},80);};
   setTimeout(function(){
     applyDateMasks();
     // Bind botões de evidência pré/pós
@@ -3643,8 +3647,19 @@ function openDos(id){
       +'</tbody></table></div></div>';
   }
   function evL(evs){
-    if(!(evs||[]).length)return '<p style="color:var(--tx3);font-size:12px">Nenhuma evidencia.</p>';
-    return evs.map(ev=>'<div class="ev-item">Arq <strong>'+esc(ev.tipo)+':</strong> '+esc(ev.nome)+(ev.data?' <a href="'+ev.data+'" download="'+esc(ev.nome)+'" style="color:var(--tl);font-size:11px;margin-left:5px">Baixar</a>':'')+'</div>').join('');
+    if(!(evs||[]).length)return '<div style="font-size:12px;color:var(--tx3);font-style:italic;padding:8px 0">Nenhuma evidencia.</div>';
+    return evs.map(function(ev,i){
+      var ext=(ev.nome||'').split('.').pop().toUpperCase();
+      var ico=ext==='PDF'?'&#128441;':['JPG','JPEG','PNG','GIF','WEBP'].includes(ext)?'&#128247;':'&#128196;';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--r2);margin-bottom:7px;box-shadow:var(--sh)">'
+        +'<div style="width:28px;height:28px;border-radius:var(--r);background:var(--tl3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+ico+'</div>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:12px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(ev.nome)+'</div>'
+        +'<div style="font-size:10px;color:var(--tl);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:2px">'+esc(ev.tipo)+'</div>'
+        +'</div>'
+        +(ev.data?'<a href="'+ev.data+'" download="'+esc(ev.nome)+'" style="font-size:10px;color:var(--tl);font-weight:700;text-decoration:none;padding:4px 10px;border:1px solid var(--tl4);border-radius:var(--r);white-space:nowrap">&#11015; Baixar</a>':'')
+        +'</div>';
+    }).join('');
   }
   var atvL=(c.atividades||[]).map(a=>'<div style="padding:9px;border-bottom:1px solid var(--bd);font-size:12px">'
     +'<div style="font-weight:600">'+esc(a.tipo)+' | '+fmtD(a.data)+(a.horario?' as '+esc(a.horario):'')+(a.duracao?' ('+esc(a.duracao)+' min)':'')+'</div>'
@@ -3658,10 +3673,12 @@ function openDos(id){
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">'
     +'<div><div style="font-size:26px;font-weight:800;color:var(--tld);letter-spacing:-1px">Virtus</div>'
     +'<div style="font-size:15px;font-weight:700;margin-top:2px">Dossie de Cobranca -- '+esc(c.paciente)+'</div></div>'
-    +'<div style="display:flex;gap:8px" class="no-print">'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap" class="no-print">'
+    +'<button class="btn btn-s" id="dos-btn-comp" style="display:flex;align-items:center;gap:6px">&#128279; Compartilhar</button>'
     +'<button class="btn btn-p" onclick="window.print()">Imprimir / PDF</button>'
     +'<button class="btn btn-s" onclick="document.getElementById(\'dos-pg\').remove()">Fechar</button>'
     +'</div></div>'
+    +'<div id="dos-comp-panel" style="display:none"></div>'
     +'<div class="card" style="margin-bottom:13px">'
     +'<div class="dos-sec" style="margin-bottom:0"><h3>Identificacao do Processo</h3>'
     +'<div class="dos-grid">'
@@ -3699,8 +3716,14 @@ function openDos(id){
     +dosSaldo(c)
     +'</div>'
     +'<div class="card" style="margin-bottom:13px">'
-    +'<div class="dos-sec"><h3>Evidencias Pre-Cirurgicas</h3><div class="ev-list">'+evL(c.evidencias_pre)+'</div></div><hr class="sep"/>'
-    +'<div class="dos-sec" style="margin-bottom:0"><h3>Evidencias Pos-Cirurgicas</h3><div class="ev-list">'+evL(c.evidencias_pos)+'</div></div>'
+    +'<div style="background:var(--sf2);border-radius:var(--r2);border:1px solid var(--bd);padding:16px 18px;margin-bottom:14px">'
+    +'<div class="c-hd" style="margin-bottom:14px">&#128196;&nbsp; Evidencias Pre-Cirurgicas ('+(c.evidencias_pre||[]).length+')</div>'
+    +evL(c.evidencias_pre)
+    +'</div>'
+    +'<div style="background:#f0faf5;border-radius:var(--r2);border:1px solid var(--bd);padding:16px 18px">'
+    +'<div class="c-hd" style="margin-bottom:14px">&#128196;&nbsp; Evidencias Pos-Cirurgicas ('+(c.evidencias_pos||[]).length+')</div>'
+    +evL(c.evidencias_pos)
+    +'</div>'
     +'</div>'
     +((c.atividades||[]).length?'<div class="card" style="margin-bottom:13px"><div class="dos-sec"><h3>Historico de Atividades</h3>'+atvL+'</div></div>':'')
     +(h?'<div class="card" style="margin-bottom:13px"><div class="dos-sec" style="margin-bottom:0"><h3>Dados do Hospital</h3>'
@@ -3715,6 +3738,44 @@ function openDos(id){
     +'</div></div>'
     +'<style>@media print{.no-print{display:none!important;}.dos-page{position:static;}}</style>';
   document.body.appendChild(pg);
+
+  // ── Bind botão Compartilhar no Dossiê ────────────────
+  var dosComp=document.getElementById('dos-btn-comp');
+  if(dosComp)dosComp.onclick=function(){
+    var panel=document.getElementById('dos-comp-panel');
+    if(!panel)return;
+    if(panel.style.display!=='none'){panel.style.display='none';dosComp.innerHTML='&#128279; Compartilhar';return;}
+    // Carregar dados do caso no CF para usar renderAbaCompartilhar
+    var oldCF=Object.assign({},CF);
+    CF=Object.assign({},c);
+    CF._links=c._links||[];
+    DB.sel('caso_links',{select:'*',eq:{cirurgia_id:c.id},order:'created_at.desc'}).then(function(r){
+      CF._links=r.data||[];
+      panel.innerHTML='<div style="margin:16px 0;padding:20px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--r2);box-shadow:var(--sh)">'
+        +'<div class="c-hd">Compartilhar Caso '+esc(c.caso_id||'')+'</div>'
+        +renderAbaCompartilhar()
+        +'</div>';
+      panel.style.display='block';
+      dosComp.innerHTML='&#10005; Fechar Compartilhar';
+      // Rebind do botão Gerar Link
+      var btnGL=document.getElementById('btn-gerar-lk');
+      if(btnGL)btnGL.onclick=function(){gerarLink().then(function(){
+        DB.sel('caso_links',{select:'*',eq:{cirurgia_id:c.id},order:'created_at.desc'}).then(function(r2){
+          CF._links=r2.data||[];
+          panel.innerHTML='<div style="margin:16px 0;padding:20px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--r2);box-shadow:var(--sh)">'
+            +'<div class="c-hd">Compartilhar Caso '+esc(c.caso_id||'')+'</div>'
+            +renderAbaCompartilhar()
+            +'</div>';
+          var btnGL2=document.getElementById('btn-gerar-lk');
+          if(btnGL2)btnGL2.onclick=arguments.callee;
+        });
+      });};
+      // Rebind copiar links
+      panel.querySelectorAll('.lk-copy-btn').forEach(function(btn){
+        btn.onclick=function(){var u=btn.getAttribute('data-url');navigator.clipboard&&navigator.clipboard.writeText(u);btn.textContent='Copiado!';setTimeout(function(){btn.textContent='Copiar';},2000);};
+      });
+    });
+  };
 }
 
 /* ── INIT ────────────────────────────────────────────────── */
