@@ -1394,9 +1394,14 @@ async function carregarLinksCaso(){
     order:'aprovado_em.desc'
   });
   CF._aprovacoes=(ra.data||[]);
-  // Contar mensagens nao lidas do devedor
-  var naoLidas=(CF._msgs||[]).filter(function(m){return m.autor_tipo==='devedor'&&!m.lida;});
-  CF._msgsBadge=naoLidas.length;
+  // Carregar anexos do devedor
+  var rAnx=await DB.sel('caso_anexos_devedor',{
+    select:'*',
+    eq:{cirurgia_id:CF.id},
+    order:'created_at.desc'
+  });
+  CF._anexosDev=(rAnx.data||[]);
+  CF._msgsBadge=0;
 }
 
 // ── Gerar novo link ─────────────────────────────────────────
@@ -2014,7 +2019,8 @@ function buildEvid(){
   // ── Seção: Anexos do Cliente (Devedor) ──────────────────
   var aprovs=CF._aprovacoes||[];
   var decisao=aprovs.find(function(a){return a.decisao;});
-  var anexosDevedor=aprovs.filter(function(a){return a.doc_nome&&a.doc_data;});
+  // Anexos do devedor vêm de caso_anexos_devedor (carregados em CF._anexosDev)
+  var anexosDevedor=CF._anexosDev||[];
 
   var decisaoHtml='';
   if(decisao){
@@ -2349,6 +2355,7 @@ async function saveCir(){
     delete payload._links;
     delete payload._msgs;
     delete payload._msgsBadge;
+    delete payload._anexosDev;
     var res;
     if(payload.id){res=await DB.upd('cirurgias',payload,{id:payload.id});}
     else{var{id,...ins}=payload;res=await DB.ins('cirurgias',ins);}
@@ -3774,8 +3781,12 @@ async function renderPortalDevedor(token){
   var ra=await dbAnonSel('caso_aprovacoes',{cirurgia_id:lk.cirurgia_id});
   var aprovs=ra.data||[];
 
+  // Buscar anexos do devedor
+  var ran=await dbAnonSel('caso_anexos_devedor',{cirurgia_id:lk.cirurgia_id});
+  var anexosDev=ran.data||[];
+
   // Renderizar portal
-  renderPortalUI(lk,cir,hosp,oper,aprovs,token);
+  renderPortalUI(lk,cir,hosp,oper,aprovs,anexosDev,token);
 }
 
 function renderPortalErro(titulo,msg){
@@ -3789,7 +3800,7 @@ function renderPortalErro(titulo,msg){
     +'</div></div>';
 }
 
-function renderPortalUI(lk,cir,hosp,oper,aprovs,token){
+function renderPortalUI(lk,cir,hosp,oper,aprovs,anexosDev,token){
   // ── Reutilizar a lógica do Dossiê interno ──────────────
   var tO=matTot(cir.mat_orcado||[]);
   var tA=matTot(cir.mat_autorizado||[]);
@@ -3967,6 +3978,27 @@ function renderPortalUI(lk,cir,hosp,oper,aprovs,token){
 
     // ── BLOCO 5: Aprovações existentes ──────────────────────
     +(aprovs.length?'<div class="card" style="margin-bottom:16px"><div class="c-hd">Historico de Acoes</div>'+aprovHtml+'</div>':'')
+
+    // ── BLOCO 5b: Anexos enviados pelo Devedor ───────────────
+    +(anexosDev.length>0
+      ?'<div class="card" style="margin-bottom:16px">'
+        +'<div class="c-hd">Anexos Enviados por Você</div>'
+        +anexosDev.map(function(a){
+          var isImg=a.url&&(a.url.startsWith('data:image')||a.nome.match(/\.(jpg|jpeg|png|gif|webp)$/i));
+          var isPdf=a.url&&(a.url.startsWith('data:application/pdf')||a.nome.match(/\.pdf$/i));
+          return '<div style="padding:10px 14px;background:var(--sf2);border-radius:var(--r);border:1px solid var(--bd);margin-bottom:8px">'
+            +'<div style="display:flex;align-items:center;gap:8px">'
+            +'<span style="font-size:20px">&#128196;</span>'
+            +'<div style="flex:1"><div style="font-size:12px;font-weight:700">'+esc(a.nome)+'</div>'
+            +'<div style="font-size:10px;color:var(--tx3)">'+esc(a.tipo)+'</div></div>'
+            +(a.url?'<a href="'+a.url+'" download="'+esc(a.nome)+'" style="font-size:11px;color:var(--tl);font-weight:700;padding:4px 10px;border:1px solid var(--tl4);border-radius:var(--r);text-decoration:none">&#11015; Baixar</a>':'')
+            +'</div>'
+            +(isImg&&a.url?'<img src="'+a.url+'" style="max-width:100%;max-height:300px;border-radius:var(--r);margin-top:8px;display:block"/>':'')
+            +(isPdf&&a.url?'<iframe src="'+a.url+'" style="width:100%;height:400px;border:none;margin-top:8px;border-radius:var(--r)"></iframe>':'')
+            +'</div>';
+        }).join('')
+        +'</div>'
+      :'')
 
     // ── BLOCO 6: Decisão do Devedor ──────────────────────────
     +(lk.perm_aprovar
@@ -4193,13 +4225,26 @@ async function registrarDecisaoPortal(lk,cir,token){
     esclarecimento_outros:esclOutros||null,
     doc_tipo:ocNome?'Ordem de Compra':null,
     doc_nome:ocNome||null,
-    doc_data:ocData||null
+    doc_data:null
   });
 
   if(r.error){
+    console.error('Erro caso_aprovacoes:', JSON.stringify(r.error));
     showAlert('Erro ao registrar: '+r.error.message,'danger');
     if(btn){btn.disabled=false;btn.innerHTML='Confirmar Decisao';}
     return;
+  }
+
+  // Gravar OC em caso_anexos_devedor (separado para evitar payload grande)
+  if(ocNome&&ocData){
+    await dbAnonIns('caso_anexos_devedor',{
+      caso_id:cir.caso_id,
+      cirurgia_id:lk.cirurgia_id,
+      link_token:lk.token,
+      tipo:'Ordem de Compra',
+      nome:ocNome,
+      url:ocData
+    });
   }
 
   // Atualizar status da cirurgia
