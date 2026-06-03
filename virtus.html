@@ -4215,7 +4215,7 @@ async function registrarDecisaoPortal(lk,cir,token){
   var esclTiposStr=esclTipos.length?esclTipos.join(' | '):null;
 
   var r=await dbAnonIns('caso_aprovacoes',{
-    caso_id:cir.caso_id,
+    caso_id:cir.caso_id||('CIR-'+cir.id),
     cirurgia_id:lk.cirurgia_id,
     link_token:lk.token,
     tipo:decisao==='Aprovado'?'autorizar_faturamento':decisao==='Recusado'?'recusar_faturamento':'pedido_esclarecimento',
