@@ -1817,6 +1817,19 @@ function renderMCir(){
   document.getElementById('bsc').onclick=saveCir;
   setTimeout(function(){
     applyDateMasks();
+    // Bind botões de evidência pré/pós
+    var btnPre=document.getElementById('ev-pre-btn');
+    var filePre=document.getElementById('ev-pre-f');
+    if(btnPre&&filePre){
+      btnPre.onclick=function(){filePre.click();};
+      filePre.onchange=function(){hdEv('pre',this);};
+    }
+    var btnPos=document.getElementById('ev-pos-btn');
+    var filePos=document.getElementById('ev-pos-f');
+    if(btnPos&&filePos){
+      btnPos.onclick=function(){filePos.click();};
+      filePos.onchange=function(){hdEv('pos',this);};
+    }
     // Bind select de responsável
     var selResp=document.getElementById('sel-resp-cir');
     if(selResp)selResp.onchange=function(){CF.responsavel_id=this.value;};
@@ -2013,8 +2026,23 @@ function rmM(k,i){CF[k].splice(i,1);if(!CF[k].length)CF[k].push(emptyMat());rend
 function buildEvid(){
   var pOpts=EV_PRE.map(t=>'<option>'+t+'</option>').join('');
   var posOpts=EV_POS.map(t=>'<option>'+t+'</option>').join('');
-  var preL=(CF.evidencias_pre||[]).map(function(ev,i){return '<div class="ev-item">Arq <strong>'+esc(ev.tipo)+':</strong> '+esc(ev.nome)+' <span class="ev-rm" onclick="rmEv(\'pre\','+i+')">X</span></div>';}).join('');
-  var posL=(CF.evidencias_pos||[]).map(function(ev,i){return '<div class="ev-item">Arq <strong>'+esc(ev.tipo)+':</strong> '+esc(ev.nome)+' <span class="ev-rm" onclick="rmEv(\'pos\','+i+')">X</span></div>';}).join('');
+
+  function evCard(ev,i,fase){
+    var ext=(ev.nome||'').split('.').pop().toUpperCase();
+    var ico=ext==='PDF'?'&#128441;':['JPG','JPEG','PNG','GIF','WEBP'].includes(ext)?'&#128247;':'&#128196;';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--r2);margin-bottom:7px;box-shadow:var(--sh)">'
+      +'<div style="width:32px;height:32px;border-radius:var(--r);background:var(--tl3);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">'+ico+'</div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(ev.nome)+'</div>'
+      +'<div style="font-size:10px;color:var(--tl);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.5px">'+esc(ev.tipo)+'</div>'
+      +'</div>'
+      +(ev.data?'<a href="'+ev.data+'" download="'+esc(ev.nome)+'" onclick="event.stopPropagation()" style="font-size:10px;color:var(--tl);font-weight:700;text-decoration:none;padding:4px 8px;border:1px solid var(--tl4);border-radius:var(--r);white-space:nowrap;margin-right:4px">&#11015;</a>':'')
+      +'<span onclick="rmEv(\"'+fase+'\",'+i+')" style="cursor:pointer;font-size:10px;color:var(--tx3);font-weight:700;padding:4px 8px;border:1px solid var(--bd);border-radius:var(--r);white-space:nowrap" title="Remover">&#10005;</span>'
+      +'</div>';
+  }
+
+  var preL=(CF.evidencias_pre||[]).map(function(ev,i){return evCard(ev,i,'pre');}).join('');
+  var posL=(CF.evidencias_pos||[]).map(function(ev,i){return evCard(ev,i,'pos');}).join('');
 
   // ── Seção: Anexos do Cliente (Devedor) ──────────────────
   var aprovs=CF._aprovacoes||[];
@@ -2035,14 +2063,21 @@ function buildEvid(){
   }
 
   var anexosHtml=anexosDevedor.length===0
-    ?'<div style="font-size:12px;color:var(--tx3);padding:10px 0">Nenhum anexo enviado pelo Devedor ainda.</div>'
-    :anexosDevedor.map(function(a){
-      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--sf2);border-radius:var(--r);border:1px solid var(--bd);margin-bottom:6px">'
-        +'<span style="font-size:18px">&#128196;</span>'
-        +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+esc(a.doc_nome)+'</div>'
-        +(a.doc_tipo?'<div style="font-size:10px;color:var(--tx3)">'+esc(a.doc_tipo)+'</div>':'')
+    ?'<div style="font-size:12px;color:var(--tx3);padding:6px 0;font-style:italic">Nenhum anexo enviado pelo Devedor ainda.</div>'
+    :anexosDevedor.map(function(a,i){
+      var ext=(a.nome||a.doc_nome||'').split('.').pop().toUpperCase();
+      var ico=ext==='PDF'?'&#128441;':['JPG','JPEG','PNG','GIF','WEBP'].includes(ext)?'&#128247;':'&#128196;';
+      var nome=a.nome||a.doc_nome||'Arquivo';
+      var url=a.url||a.doc_data||'';
+      var tipo=a.tipo||a.doc_tipo||'';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--r2);margin-bottom:7px;box-shadow:var(--sh)">'
+        +'<div style="width:28px;height:28px;border-radius:var(--r);background:#ede9f7;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;font-weight:700;color:#7c5cbf;font-size:10px">'+(i+1)+'</div>'
+        +'<div style="width:28px;height:28px;border-radius:var(--r);background:var(--tl3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+ico+'</div>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:12px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(nome)+'</div>'
+        +(tipo?'<div style="font-size:10px;color:var(--tl);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.5px">'+esc(tipo)+'</div>':'')
         +'</div>'
-        +'<a href="'+a.doc_data+'" download="'+esc(a.doc_nome)+'" style="font-size:11px;color:var(--tl);font-weight:700;text-decoration:none;padding:4px 10px;border:1px solid var(--tl4);border-radius:var(--r)">&#11015; Baixar</a>'
+        +(url?'<a href="'+url+'" download="'+esc(nome)+'" style="font-size:10px;color:var(--tl);font-weight:700;text-decoration:none;padding:4px 10px;border:1px solid var(--tl4);border-radius:var(--r);white-space:nowrap">&#11015; Baixar</a>':'')
         +'</div>';
     }).join('');
 
@@ -2051,27 +2086,36 @@ function buildEvid(){
     +'<button class="btn btn-s btn-sm" onclick="CT=\'compartilhar\';renderMCir()" style="display:flex;align-items:center;gap:6px">&#128279; Compartilhar com Devedor</button>'
     +'</div>';
 
+  function secao(titulo,cor,conteudo){
+    return '<div style="background:'+cor+';border-radius:var(--r2);border:1px solid var(--bd);padding:16px 18px;margin-bottom:14px">'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--tl);border-bottom:2px solid var(--tl3);padding-bottom:8px;margin-bottom:14px">'+titulo+'</div>'
+      +conteudo
+      +'</div>';
+  }
+
+  var nenhum='<div style="font-size:12px;color:var(--tx3);padding:6px 0;font-style:italic">Nenhum arquivo anexado ainda.</div>';
+
+  var addPreHtml='<div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px">'
+    +'<div style="flex:1"><label style="font-size:11px">Tipo de Evidencia</label><select id="ev-pre-tp" style="margin-top:4px">'+pOpts+'</select></div>'
+    +'<button class="btn btn-s" id="ev-pre-btn" style="white-space:nowrap">&#128206; Adicionar Arquivo</button>'
+    +'<input type="file" id="ev-pre-f" style="display:none" multiple accept=".pdf,.jpg,.png,.doc,.docx,.xls,.xlsx"/>'
+    +'</div>';
+
+  var addPosHtml='<div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px">'
+    +'<div style="flex:1"><label style="font-size:11px">Tipo de Evidencia</label><select id="ev-pos-tp" style="margin-top:4px">'+posOpts+'</select></div>'
+    +'<button class="btn btn-s" id="ev-pos-btn" style="white-space:nowrap">&#128206; Adicionar Arquivo</button>'
+    +'<input type="file" id="ev-pos-f" style="display:none" multiple accept=".pdf,.jpg,.png,.doc,.docx,.xls,.xlsx"/>'
+    +'</div>';
+
   return btnCompartilhar
-    +'<div class="c-hd">Pre-Cirurgico</div>'
-    +'<div class="form-row fr2" style="margin-bottom:7px">'
-    +'<div><label>Tipo de Evidencia</label><select id="ev-pre-tp">'+pOpts+'</select></div>'
-    +'<div style="display:flex;align-items:flex-end"><button class="btn btn-s" onclick="document.getElementById(\'ev-pre-f\').click()">Selecionar Arquivo</button>'
-    +'<input type="file" id="ev-pre-f" style="display:none" multiple accept=".pdf,.jpg,.png,.doc,.docx,.xls,.xlsx" onchange="hdEv(\'pre\',this)"/></div>'
-    +'</div><div class="ev-list">'+(preL||'<span style="font-size:12px;color:var(--tx3)">Nenhum arquivo</span>')+'</div>'
-    +'<hr class="sep"/>'
-    +'<div class="c-hd">Pos-Cirurgico</div>'
-    +'<div class="form-row fr2" style="margin-bottom:7px">'
-    +'<div><label>Tipo de Evidencia</label><select id="ev-pos-tp">'+posOpts+'</select></div>'
-    +'<div style="display:flex;align-items:flex-end"><button class="btn btn-s" onclick="document.getElementById(\'ev-pos-f\').click()">Selecionar Arquivo</button>'
-    +'<input type="file" id="ev-pos-f" style="display:none" multiple accept=".pdf,.jpg,.png,.doc,.docx,.xls,.xlsx" onchange="hdEv(\'pos\',this)"/></div>'
-    +'</div><div class="ev-list">'+(posL||'<span style="font-size:12px;color:var(--tx3)">Nenhum arquivo</span>')+'</div>'
-    +'<hr class="sep"/>'
-    // ── Seção Devedor ──
-    +'<div class="c-hd">Anexos do Cliente (Devedor)</div>'
-    +anexosHtml
-    +'<hr class="sep"/>'
-    +'<div class="c-hd">Decisao do Devedor</div>'
-    +(decisaoHtml||'<div style="font-size:12px;color:var(--tx3);padding:10px 0">Nenhuma decisao registrada ainda.</div>');
+    +secao('&#128196;&nbsp; Evidências Pré-Cirúrgicas ('+((CF.evidencias_pre||[]).length)+')','var(--sf2)',
+        addPreHtml+(preL||nenhum))
+    +secao('&#128196;&nbsp; Evidências Pós-Cirúrgicas ('+((CF.evidencias_pos||[]).length)+')','#f0faf5',
+        addPosHtml+(posL||nenhum))
+    +secao('&#128100;&nbsp; Anexos do Cliente (Devedor) ('+(anexosDevedor.length)+')','#f5f0fa',
+        anexosHtml)
+    +secao('&#9989;&nbsp; Decisão do Devedor','var(--sf2)',
+        (decisaoHtml||'<div style="font-size:12px;color:var(--tx3);padding:6px 0;font-style:italic">Nenhuma decisão registrada ainda.</div>'));
 }
 function rmEv(fase,i){if(fase==='pre')CF.evidencias_pre.splice(i,1);else CF.evidencias_pos.splice(i,1);renderMCir();}
 function hdEv(fase,input){
