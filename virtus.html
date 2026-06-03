@@ -4317,15 +4317,16 @@ function renderPortalUI(lk,cir,hosp,oper,aprovs,anexosDev,token){
     +'</div>'
 
     // ── BLOCO 3: Materiais por fase ──────────────────────────
-    // Extrair resp_* — podem estar em campos diretos ou dentro do _meta de mat_orcado
-    var _meta=(cir.mat_orcado||[]).find(function(m){return m&&m._meta;});
-    var _rmap=(_meta&&_meta._responsaveis)||{};
-    function getR(k){return cir['resp_'+k]||_rmap[k]||[];}
-    +(tO>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F1 — Materiais Orcados</div>'+buildMatSection(cir.mat_orcado,'F1',tO,getR('orcado'))+'</div>':'')
-    +(tA>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F2 — Materiais Autorizados</div>'+buildMatSection(cir.mat_autorizado,'F2',tA,getR('autorizado'))+'</div>':'')
-    +(tU>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F3 — Materiais Utilizados</div>'+buildMatSection(cir.mat_utilizado,'F3',tU,getR('utilizado'))+'</div>':'')
-    +(tF4>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F4 — Faturamento Autorizado</div>'+buildMatSection(cir.mat_fat_autorizado,'F4',tF4,getR('fat_autorizado'))+'</div>':'')
-    +(tF>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F5 — Materiais Faturados</div>'+buildMatSection(cir.mat_faturado,'F5',tF,getR('faturado'))+'</div>':'')
+    +(function(){
+      var _meta=(cir.mat_orcado||[]).find(function(m){return m&&m._meta;});
+      var _rmap=(_meta&&_meta._responsaveis)||{};
+      function getR(k){return cir['resp_'+k]||_rmap[k]||[];}
+      return (tO>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F1 — Materiais Orcados</div>'+buildMatSection(cir.mat_orcado,'F1',tO,getR('orcado'))+'</div>':'')
+        +(tA>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F2 — Materiais Autorizados</div>'+buildMatSection(cir.mat_autorizado,'F2',tA,getR('autorizado'))+'</div>':'')
+        +(tU>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F3 — Materiais Utilizados</div>'+buildMatSection(cir.mat_utilizado,'F3',tU,getR('utilizado'))+'</div>':'')
+        +(tF4>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F4 — Faturamento Autorizado</div>'+buildMatSection(cir.mat_fat_autorizado,'F4',tF4,getR('fat_autorizado'))+'</div>':'')
+        +(tF>0?'<div class="card" style="margin-bottom:16px"><div class="c-hd">F5 — Materiais Faturados</div>'+buildMatSection(cir.mat_faturado,'F5',tF,getR('faturado'))+'</div>':'');
+    }())
 
     // ── BLOCO 4: Evidências ──────────────────────────────────
     +((cir.evidencias_pre&&cir.evidencias_pre.length)||(cir.evidencias_pos&&cir.evidencias_pos.length)
