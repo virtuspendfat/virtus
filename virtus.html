@@ -3976,21 +3976,19 @@ function openDos(id){
     DB.sel('caso_links',{select:'*',eq:{cirurgia_id:c.id},order:'created_at.desc'}).then(function(r){
       CF._links=r.data||[];
       panel.innerHTML='<div style="margin:16px 0;padding:20px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--r2);box-shadow:var(--sh)">'
-        +'<div class="c-hd">Compartilhar Caso '+esc(c.caso_id||'')+'</div>'
         +renderAbaCompartilhar()
         +'</div>';
       panel.style.display='block';
       dosComp.innerHTML='&#10005; Fechar Compartilhar';
       // Rebind do botão Gerar Link
-      var btnGL=document.getElementById('btn-gerar-lk');
+      var btnGL=document.getElementById('btn-gerar-link');
       if(btnGL)btnGL.onclick=function(){gerarLink().then(function(){
         DB.sel('caso_links',{select:'*',eq:{cirurgia_id:c.id},order:'created_at.desc'}).then(function(r2){
           CF._links=r2.data||[];
           panel.innerHTML='<div style="margin:16px 0;padding:20px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--r2);box-shadow:var(--sh)">'
-            +'<div class="c-hd">Compartilhar Caso '+esc(c.caso_id||'')+'</div>'
             +renderAbaCompartilhar()
             +'</div>';
-          var btnGL2=document.getElementById('btn-gerar-lk');
+          var btnGL2=document.getElementById('btn-gerar-link');
           if(btnGL2)btnGL2.onclick=arguments.callee;
         });
       });};
