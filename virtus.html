@@ -2024,7 +2024,7 @@ function buildEvid(){
       +'<div style="font-size:13px;font-weight:700;color:'+dCor+'">'+esc(decisao.decisao)+'</div>'
       +'<div style="font-size:11px;color:var(--tx3);margin-top:3px">Por: '+esc(decisao.aprovado_por)+' — '+new Date(decisao.aprovado_em||decisao.decisao_em||Date.now()).toLocaleString('pt-BR')+'</div>'
       +(decisao.recusa_razao?'<div style="font-size:12px;color:var(--tx2);margin-top:6px"><strong>Razão:</strong> '+esc(decisao.recusa_razao)+'</div>':'')
-      +(decisao.esclarecimento_tipos&&decisao.esclarecimento_tipos.length?'<div style="font-size:12px;color:var(--tx2);margin-top:6px"><strong>Esclarecimentos solicitados:</strong> '+esc(decisao.esclarecimento_tipos.join(', '))+(decisao.esclarecimento_outros?' — '+esc(decisao.esclarecimento_outros):'')+'</div>':'')
+      +(decisao.esclarecimento_outros||decisao.esclarecimento_tipos?'<div style="font-size:12px;color:var(--tx2);margin-top:6px"><strong>Esclarecimentos solicitados:</strong> '+esc(decisao.esclarecimento_outros||decisao.esclarecimento_tipos||'')+'</div>':'')
       +'</div>';
   }
 
@@ -3881,7 +3881,7 @@ function renderPortalUI(lk,cir,hosp,oper,aprovs,token){
         +'<div style="font-size:13px;font-weight:700;color:'+cor+'">'+esc(label)+'</div>'
         +'<div style="font-size:11px;color:var(--tx3);margin-top:3px">'+esc(a.aprovado_por)+' — '+new Date(a.aprovado_em||a.decisao_em||Date.now()).toLocaleDateString('pt-BR')+'</div>'
         +(a.recusa_razao?'<div style="font-size:12px;color:var(--tx2);margin-top:6px"><strong>Razão:</strong> '+esc(a.recusa_razao)+'</div>':'')
-        +(a.esclarecimento_tipos&&a.esclarecimento_tipos.length?'<div style="font-size:12px;color:var(--tx2);margin-top:4px"><strong>Esclarecimentos:</strong> '+esc(a.esclarecimento_tipos.join(', '))+(a.esclarecimento_outros?' — '+esc(a.esclarecimento_outros):'')+'</div>':'')
+        +(a.esclarecimento_outros||a.esclarecimento_tipos?'<div style="font-size:12px;color:var(--tx2);margin-top:4px"><strong>Esclarecimentos:</strong> '+esc(a.esclarecimento_outros||a.esclarecimento_tipos||'')+'</div>':'')
         +(a.doc_nome&&a.doc_data?'<div style="margin-top:8px;display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.5);border-radius:var(--r)"><span>&#128196;</span><span style="font-size:12px;font-weight:600">'+esc(a.doc_nome)+'</span><a href="'+a.doc_data+'" download="'+esc(a.doc_nome)+'" style="margin-left:auto;font-size:11px;color:var(--tl);font-weight:700;text-decoration:none;padding:3px 8px;border:1px solid var(--tl4);border-radius:4px">&#11015;</a></div>':'')
         +'</div>';
     }).join('');
@@ -4177,6 +4177,9 @@ async function registrarDecisaoPortal(lk,cir,token){
   }
 
   // Gravar em caso_aprovacoes
+  // Serializar array como texto para compatibilidade com Supabase REST
+  var esclTiposStr=esclTipos.length?esclTipos.join(' | '):null;
+
   var r=await dbAnonIns('caso_aprovacoes',{
     caso_id:cir.caso_id,
     cirurgia_id:lk.cirurgia_id,
@@ -4187,7 +4190,6 @@ async function registrarDecisaoPortal(lk,cir,token){
     decisao:decisao,
     decisao_em:new Date().toISOString(),
     recusa_razao:recusaRazao||null,
-    esclarecimento_tipos:esclTipos.length?esclTipos:null,
     esclarecimento_outros:esclOutros||null,
     doc_tipo:ocNome?'Ordem de Compra':null,
     doc_nome:ocNome||null,
